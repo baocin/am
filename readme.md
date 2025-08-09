@@ -1,3 +1,14 @@
+The next installment of the ever lingering side project. Originally [pino](https://github.com/baocin/pino), then [loom](https://github.com/baocin/loom), then [loomv2](https://github.com/baocin/loomv2), breifly [loomv3](https://github.com/baocin/loomv3) but now finally {totally} settling on the forever repo - 
+
+# *AM*
+### As in, "I, AM" and short for "Allied Mastercomputer"
+
+*AM* is a custodian of all digital timeseries dataset an individual has access to. Typical sensors like gps, heart rate, ocred screen text, environmental audio, speech, motion, android app launch/close events, any manual screenshots taken, copied text, etc. Anything and everything. Including data not on your phone - but your watch, laptop, calendars, email, and some (hopefully more) social media sites. A time-synced feed of as much context an LLM background agent could ask for. Then we crunch it. OCR on all photos, STT on all audio, LLM analysis of all text, all of it embedded - searchable. Then a DSPY agent is let loose to analyze, find patterns, track habits, keep a log of *memories*, aspects inferred from your true behavior. And then makes suggestions - nudges, over real time custom notifications - where the LLM decides what is helpful to ask you, mention to you, proactively reminding you of events, memories, facts relevant to your immediate task. An LLM that doesn't need your explicit prompt to be useful - it knows what is happening. It can help. 
+
+
+----------------------------------
+Old description:
+
 Loom v2 Project Description
 This document provides a comprehensive overview of the Loom v2 project, a scalable, event-driven system designed to ingest, process, and analyze high-throughput multimodal data streams for a multi-user paid service. It details the technology stack, architecture, supported data streams, key considerations, and requirements to ensure a successful handoff to a new development team. The system is containerized using k3s for a monolith-like deployment experience, with support for GPU acceleration and CPU fallback, and is optimized for robustness, scalability, and maintainability.
 
