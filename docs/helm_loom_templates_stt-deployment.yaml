@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loom-stt-processor
+  labels:
+    app: loom-stt-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loom-stt-processor
+  template:
+    metadata:
+      labels:
+        app: loom-stt-processor
+    spec:
+      {{- if .Values.gpu.enabled }}
+      nodeSelector:
+        nvidia.com/gpu: "true"
+      {{- end }}
+      containers:
+      - name: stt-processor
+        image: loom/stt-processor:latest
+        env:
+        - name: NATS_URL
+          value: "{{ .Values.nats.url }}"
+        - name: USE_GPU
+          value: "{{ .Values.gpu.enabled }}"
+        resources:
+          {{- if .Values.gpu.enabled }}
+          limits:
+            nvidia.com/gpu: 1
+          requests:
+            nvidia.com/gpu: 1
+          {{- else }}
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+          {{- end }}
+        ports:
+        - containerPort: 8080
