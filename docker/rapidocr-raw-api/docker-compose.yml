@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  rapidocr-raw-api:
+    build: .
+    container_name: rapidocr-raw-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./temp:/tmp  # For visualization outputs
+      - ./models/rapidocr:/app/models  # RapidOCR models
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MODEL_DIR=/app/models
+      - AUTO_DOWNLOAD_MODELS=true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
