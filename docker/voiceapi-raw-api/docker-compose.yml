@@ -1,0 +1,42 @@
+services:
+  voice-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
+    container_name: voice-api
+    
+    ports:
+      - "${PORT:-8257}:8000"
+    
+    volumes:
+      - ./temp:/tmp                    # Temporary files
+      - ./models:/app/models           # ML models
+      - ./config:/app/config           # Configuration files
+      - ./known_speakers.json:/app/models/known_speakers.json
+    
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - MODEL_DIR=/app/models
+      - AUTO_DOWNLOAD_MODELS=${AUTO_DOWNLOAD:-true}
+      - MAX_WORKERS=${MAX_WORKERS:-4}
+      - TIMEOUT=${TIMEOUT:-300}
+      - DEBUG=${DEBUG:-false}
+      # Model specific
+      - ASR_MODEL=${ASR_MODEL:-parakeet-offline}
+      - TTS_MODEL=${TTS_MODEL:-kokoro-multi-lang-v1_0}
+      - SPEAKER_MODEL=${SPEAKER_MODEL:-nemo-speakernet}
+      - SPEAKER_THRESHOLD=${SPEAKER_THRESHOLD:-0.6}
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  voice-api-models:
+    driver: local

@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice API Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .section {
+            margin: 2rem 0;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin: 1rem 0;
+        }
+        button {
+            padding: 0.5rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        button.danger {
+            background: #dc3545;
+        }
+        button.danger:hover {
+            background: #c82333;
+        }
+        button.success {
+            background: #28a745;
+        }
+        button.success:hover {
+            background: #218838;
+        }
+        textarea {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-family: inherit;
+            resize: vertical;
+        }
+        input[type="text"] {
+            padding: 0.5rem;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+        .output {
+            background: #e9ecef;
+            padding: 1rem;
+            border-radius: 4px;
+            min-height: 100px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+        }
+        .status {
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            margin: 0.5rem 0;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .recording {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #dc3545;
+            border-radius: 50%;
+            margin-left: 0.5rem;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .speaker-list {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin: 1rem 0;
+        }
+        .speaker-tag {
+            background: #e9ecef;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Voice API Demo</h1>
+        
+        <!-- Health Status -->
+        <div id="healthStatus" class="status info" style="text-align: center; margin-bottom: 2rem;">
+            <span id="healthText">Checking API health...</span>
+            <span id="healthSpinner" class="recording" style="background: #007bff;"></span>
+        </div>
+        
+        <!-- TTS Section -->
+        <div class="section">
+            <h2>Text-to-Speech</h2>
+            <textarea id="ttsText" rows="3" placeholder="Enter text to speak...">Hello! This is a test of the text to speech system.</textarea>
+            <div class="controls">
+                <select id="voiceSelect" style="padding: 0.5rem; border: 1px solid #ced4da; border-radius: 4px; margin-right: 0.5rem;">
+                    <optgroup label="🇺🇸 US English - Female">
+                        <option value="0">Default Female (ID: 0)</option>
+                        <option value="11">Alloy (ID: 11)</option>
+                        <option value="12">Aoede (ID: 12)</option>
+                        <option value="1" selected>Bella (ID: 1)</option>
+                        <option value="14">Heart (ID: 14)</option>
+                        <option value="15">Jessica (ID: 15)</option>
+                        <option value="16">Kendra (ID: 16)</option>
+                        <option value="2">Nicole (ID: 2)</option>
+                        <option value="17">Nova (ID: 17)</option>
+                        <option value="3">Sarah (ID: 3)</option>
+                        <option value="4">Sky (ID: 4)</option>
+                    </optgroup>
+                    <optgroup label="🇺🇸 US English - Male">
+                        <option value="5">Adam (ID: 5)</option>
+                        <option value="18">Benjamin (ID: 18)</option>
+                        <option value="19">Bruce (ID: 19)</option>
+                        <option value="6">Michael (ID: 6)</option>
+                        <option value="20">Onyx (ID: 20)</option>
+                        <option value="21">Patrick (ID: 21)</option>
+                    </optgroup>
+                    <optgroup label="🇬🇧 British English">
+                        <option value="22">Amelia (F) (ID: 22)</option>
+                        <option value="23">Angie (F) (ID: 23)</option>
+                        <option value="7">Emma (F) (ID: 7)</option>
+                        <option value="8">Isabella (F) (ID: 8)</option>
+                        <option value="24">Sophie (F) (ID: 24)</option>
+                        <option value="25">Alfred (M) (ID: 25)</option>
+                        <option value="26">Daniel (M) (ID: 26)</option>
+                        <option value="9">George (M) (ID: 9)</option>
+                        <option value="10">Lewis (M) (ID: 10)</option>
+                        <option value="27">Oscar (M) (ID: 27)</option>
+                    </optgroup>
+                    <optgroup label="🇯🇵 Japanese">
+                        <option value="28">Azusa (F) (ID: 28)</option>
+                        <option value="29">Mei (F) (ID: 29)</option>
+                        <option value="30">Momoka (F) (ID: 30)</option>
+                        <option value="31">Nanami (F) (ID: 31)</option>
+                        <option value="32">Shiori (F) (ID: 32)</option>
+                        <option value="33">Hiro (M) (ID: 33)</option>
+                        <option value="34">Kiyoshi (M) (ID: 34)</option>
+                        <option value="35">Shou (M) (ID: 35)</option>
+                        <option value="36">Takeshi (M) (ID: 36)</option>
+                    </optgroup>
+                    <optgroup label="🇫🇷 French">
+                        <option value="37">Lea (F) (ID: 37)</option>
+                        <option value="38">Elise (F) (ID: 38)</option>
+                        <option value="39">Camille (F) (ID: 39)</option>
+                        <option value="40">Henri (M) (ID: 40)</option>
+                        <option value="41">Louis (M) (ID: 41)</option>
+                    </optgroup>
+                    <optgroup label="🇵🇹 Portuguese">
+                        <option value="42">Madalena (F) (ID: 42)</option>
+                        <option value="43">Francisca (F) (ID: 43)</option>
+                        <option value="44">Miguel (M) (ID: 44)</option>
+                        <option value="45">Afonso (M) (ID: 45)</option>
+                    </optgroup>
+                    <optgroup label="🇪🇸 Spanish">
+                        <option value="46">Ana (F) (ID: 46)</option>
+                        <option value="47">Elena (F) (ID: 47)</option>
+                        <option value="48">Christina (F) (ID: 48)</option>
+                        <option value="49">Mateo (M) (ID: 49)</option>
+                        <option value="50">Diego (M) (ID: 50)</option>
+                    </optgroup>
+                    <optgroup label="🇨🇳 Chinese">
+                        <option value="51">Linglong (F) (ID: 51)</option>
+                        <option value="52">Xiaowen (F) (ID: 52)</option>
+                        <option value="zm_yunxi">Yunxi (M)</option>
+                        <option value="zm_yunxia">Yunxia (M)</option>
+                        <option value="zm_yunyang">Yunyang (M)</option>
+                    </optgroup>
+                </select>
+                <button id="ttsButton" onclick="doTTS()">Speak</button>
+                <span id="ttsStatus"></span>
+            </div>
+        </div>
+
+        <!-- ASR Section -->
+        <div class="section">
+            <h2>Speech Recognition</h2>
+            <div class="controls">
+                <button id="asrButton" onclick="toggleASR()">Start Recording</button>
+                <span id="asrStatus"></span>
+            </div>
+            <div class="output" id="asrOutput">Click "Start Recording" and speak...</div>
+        </div>
+
+        <!-- Speaker Registration Section -->
+        <div class="section">
+            <h2>Speaker Registration</h2>
+            <div class="controls">
+                <input type="text" id="speakerName" placeholder="Enter speaker name">
+                <button id="registerButton" onclick="registerSpeaker()">Register Speaker</button>
+                <span id="registerStatus"></span>
+            </div>
+            <div class="speaker-list" id="speakerList"></div>
+        </div>
+
+        <!-- Speaker Identification Section -->
+        <div class="section">
+            <h2>Speaker Identification</h2>
+            <div class="controls">
+                <button id="speakerIdButton" onclick="toggleSpeakerID()">Start Identification</button>
+                <span id="speakerIdStatus"></span>
+            </div>
+            <div class="output" id="speakerIdOutput">Click "Start Identification" and speak for 3+ seconds...</div>
+        </div>
+    </div>
+
+    <script>
+        // Audio Worklet Processors
+        const audioProcessorCode = `
+            class RecordAudioProcessor extends AudioWorkletProcessor {
+                process(inputs, outputs, parameters) {
+                    const channel = inputs[0][0];
+                    if (!channel || channel.length === 0) {
+                        return true;
+                    }
+                    const int16Array = new Int16Array(channel.length);
+                    for (let i = 0; i < channel.length; i++) {
+                        int16Array[i] = channel[i] * 32767;
+                    }
+                    this.port.postMessage({ data: int16Array });
+                    return true;
+                }
+            }
+            
+            class PlayerAudioProcessor extends AudioWorkletProcessor {
+                constructor() {
+                    super();
+                    this.buffer = new Float32Array();
+                    this.port.onmessage = (event) => {
+                        let newData = new Float32Array(this.buffer.length + event.data.audioData.length);
+                        newData.set(this.buffer, 0);
+                        newData.set(event.data.audioData, this.buffer.length);
+                        this.buffer = newData;
+                    };
+                }
+                
+                process(inputs, outputs, parameters) {
+                    const channel = outputs[0][0];
+                    const bufferLength = this.buffer.length;
+                    for (let i = 0; i < channel.length; i++) {
+                        channel[i] = (i < bufferLength) ? this.buffer[i] : 0;
+                    }
+                    this.buffer = this.buffer.slice(channel.length);
+                    return true;
+                }
+            }
+            
+            registerProcessor('record-audio-processor', RecordAudioProcessor);
+            registerProcessor('play-audio-processor', PlayerAudioProcessor);
+        `;
+
+        // Create audio worklet module
+        const blob = new Blob([audioProcessorCode], { type: 'application/javascript' });
+        const audioWorkletUrl = URL.createObjectURL(blob);
+
+        // Global variables
+        let asrWS = null;
+        let asrStream = null;
+        let asrAudioContext = null;
+        let asrRecordNode = null;
+
+        let speakerIdWS = null;
+        let speakerIdStream = null;
+        let speakerIdAudioContext = null;
+        let speakerIdRecordNode = null;
+        
+        let apiHealthy = false;
+
+        // Disable all buttons initially
+        function setButtonsEnabled(enabled) {
+            const buttons = document.querySelectorAll('button');
+            buttons.forEach(button => {
+                button.disabled = !enabled;
+            });
+        }
+
+        // Check API health
+        async function checkHealth() {
+            const healthStatus = document.getElementById('healthStatus');
+            const healthText = document.getElementById('healthText');
+            const healthSpinner = document.getElementById('healthSpinner');
+            
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                
+                if (response.ok && data.status === 'healthy' && data.models_loaded) {
+                    apiHealthy = true;
+                    healthStatus.className = 'status success';
+                    healthText.textContent = '✓ API is healthy - All models loaded';
+                    healthSpinner.style.display = 'none';
+                    setButtonsEnabled(true);
+                    
+                    // Load speakers once API is healthy
+                    loadSpeakers();
+                } else {
+                    apiHealthy = false;
+                    healthStatus.className = 'status error';
+                    healthText.textContent = `✗ API unhealthy: ${data.error || 'Models still loading...'}`;
+                    healthSpinner.style.display = 'inline-block';
+                    setButtonsEnabled(false);
+                    
+                    // Retry after 2 seconds
+                    setTimeout(checkHealth, 2000);
+                }
+            } catch (error) {
+                apiHealthy = false;
+                healthStatus.className = 'status error';
+                healthText.textContent = '✗ Cannot connect to API';
+                healthSpinner.style.display = 'none';
+                setButtonsEnabled(false);
+                
+                // Retry after 2 seconds
+                setTimeout(checkHealth, 2000);
+            }
+        }
+
+        // Load speakers on page load
+        async function loadSpeakers() {
+            try {
+                const response = await fetch('/speakers');
+                const speakers = await response.json();
+                updateSpeakerList(speakers);
+            } catch (error) {
+                console.error('Failed to load speakers:', error);
+            }
+        }
+
+        function updateSpeakerList(speakers) {
+            const list = document.getElementById('speakerList');
+            if (speakers.length === 0) {
+                list.innerHTML = '<em>No speakers registered</em>';
+            } else {
+                list.innerHTML = speakers.map((s, index) => 
+                    `<span class="speaker-tag">${s.name} <small style="opacity: 0.6">(ID: ${index})</small></span>`
+                ).join('');
+            }
+        }
+
+        // TTS Functions
+        async function doTTS() {
+            const text = document.getElementById('ttsText').value;
+            if (!text) return;
+
+            const button = document.getElementById('ttsButton');
+            const status = document.getElementById('ttsStatus');
+            const voice = document.getElementById('voiceSelect').value;
+            
+            // Don't show any status text while speaking
+
+            let resetTimeout = null;
+            let audioFinished = false;
+            
+            function resetUI() {
+                if (resetTimeout) {
+                    clearTimeout(resetTimeout);
+                    resetTimeout = null;
+                }
+                audioFinished = true;
+            }
+
+            try {
+                const audioContext = new AudioContext({ sampleRate: 16000 });
+                await audioContext.audioWorklet.addModule(audioWorkletUrl);
+                
+                // Include voice as sid parameter
+                const ws = new WebSocket(`ws://localhost:8257/tts?sid=${encodeURIComponent(voice)}`);
+                const playNode = new AudioWorkletNode(audioContext, 'play-audio-processor');
+                playNode.connect(audioContext.destination);
+
+                let totalSamplesSent = 0;
+                let lastAudioTime = Date.now();
+                
+                ws.onopen = () => {
+                    ws.send(text);
+                };
+
+                ws.onmessage = async (event) => {
+                    if (event.data instanceof Blob) {
+                        const arrayBuffer = await event.data.arrayBuffer();
+                        const int16Array = new Int16Array(arrayBuffer);
+                        const float32Array = new Float32Array(int16Array.length);
+                        for (let i = 0; i < int16Array.length; i++) {
+                            float32Array[i] = int16Array[i] / 32768;
+                        }
+                        playNode.port.postMessage({ audioData: float32Array });
+                        
+                        totalSamplesSent += float32Array.length;
+                        lastAudioTime = Date.now();
+                    } else {
+                        const data = JSON.parse(event.data);
+                        if (data.finished) {
+                            ws.close();
+                            
+                            // Calculate approximate playback duration
+                            const audioDurationMs = (totalSamplesSent / 16000) * 1000;
+                            const timeSinceLastAudio = Date.now() - lastAudioTime;
+                            const remainingTime = Math.max(500, audioDurationMs - timeSinceLastAudio);
+                            
+                            // Reset UI after estimated playback time
+                            resetTimeout = setTimeout(() => {
+                                if (!audioFinished) {
+                                    resetUI();
+                                    if (audioContext && audioContext.state !== 'closed') {
+                                        audioContext.close();
+                                    }
+                                }
+                            }, remainingTime);
+                        }
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    status.textContent = 'Error: Connection failed';
+                    if (audioContext && audioContext.state !== 'closed') {
+                        audioContext.close();
+                    }
+                };
+
+                ws.onclose = () => {
+                    // Fallback safety net - always reset after 10 seconds max
+                    if (!resetTimeout) {
+                        resetTimeout = setTimeout(() => {
+                            if (!audioFinished) {
+                                resetUI();
+                                if (audioContext && audioContext.state !== 'closed') {
+                                    audioContext.close();
+                                }
+                            }
+                        }, 10000);
+                    }
+                };
+
+            } catch (error) {
+                status.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        // ASR Functions
+        async function toggleASR() {
+            if (asrWS) {
+                stopASR();
+            } else {
+                startASR();
+            }
+        }
+
+        async function startASR() {
+            const button = document.getElementById('asrButton');
+            const status = document.getElementById('asrStatus');
+            const output = document.getElementById('asrOutput');
+
+            try {
+                asrStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                asrAudioContext = new AudioContext({ sampleRate: 16000 });
+                await asrAudioContext.audioWorklet.addModule(audioWorkletUrl);
+
+                asrWS = new WebSocket('ws://localhost:8257/asr');
+                output.textContent = '';
+
+                asrWS.onopen = () => {
+                    button.textContent = 'Stop Recording';
+                    button.classList.add('danger');
+                    status.innerHTML = '<span class="recording"></span> Recording...';
+                };
+
+                asrWS.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    if (data.finished) {
+                        let text = `[${new Date().toLocaleTimeString()}] ${data.text}`;
+                        if (data.speaker_id) {
+                            text += ` (Speaker: ${data.speaker_id}, Confidence: ${(data.speaker_confidence * 100).toFixed(1)}%)`;
+                        }
+                        output.textContent += text + '\n';
+                    }
+                };
+
+                asrWS.onerror = () => {
+                    status.textContent = 'Error: Connection failed';
+                    stopASR();
+                };
+
+                asrRecordNode = new AudioWorkletNode(asrAudioContext, 'record-audio-processor');
+                asrRecordNode.connect(asrAudioContext.destination);
+                
+                asrRecordNode.port.onmessage = (event) => {
+                    if (asrWS && asrWS.readyState === WebSocket.OPEN) {
+                        asrWS.send(event.data.data.buffer);
+                    }
+                };
+
+                const source = asrAudioContext.createMediaStreamSource(asrStream);
+                source.connect(asrRecordNode);
+
+            } catch (error) {
+                status.textContent = 'Error: ' + error.message;
+                stopASR();
+            }
+        }
+
+        function stopASR() {
+            const button = document.getElementById('asrButton');
+            const status = document.getElementById('asrStatus');
+
+            if (asrWS) {
+                asrWS.close();
+                asrWS = null;
+            }
+            if (asrStream) {
+                asrStream.getTracks().forEach(track => track.stop());
+                asrStream = null;
+            }
+            if (asrAudioContext) {
+                asrAudioContext.close();
+                asrAudioContext = null;
+            }
+
+            button.textContent = 'Start Recording';
+            button.classList.remove('danger');
+            status.textContent = '';
+        }
+
+        // Speaker Registration
+        async function registerSpeaker() {
+            const name = document.getElementById('speakerName').value.trim();
+            if (!name) {
+                alert('Please enter a speaker name');
+                return;
+            }
+
+            const button = document.getElementById('registerButton');
+            const status = document.getElementById('registerStatus');
+            button.disabled = true;
+            status.textContent = 'Recording for 5 seconds...';
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const audioContext = new AudioContext({ sampleRate: 16000 });
+                await audioContext.audioWorklet.addModule(audioWorkletUrl);
+
+                const ws = new WebSocket(`ws://localhost:8257/speaker_register?name=${encodeURIComponent(name)}`);
+                
+                ws.onmessage = async (event) => {
+                    const data = JSON.parse(event.data);
+                    if (data.status === 'recording') {
+                        status.textContent = `Recording: ${(data.progress / 20).toFixed(1)}s / 5.0s`;
+                    } else if (data.status === 'success') {
+                        status.innerHTML = '<span class="status success">Speaker registered successfully!</span>';
+                        document.getElementById('speakerName').value = '';
+                        // Close connection and audio before loading speakers
+                        ws.close();
+                        stream.getTracks().forEach(track => track.stop());
+                        audioContext.close();
+                        // Load speakers after a short delay to ensure server has updated
+                        setTimeout(async () => {
+                            await loadSpeakers();
+                            button.disabled = false;
+                        }, 500);
+                    } else if (data.status === 'error') {
+                        status.innerHTML = `<span class="status error">Error: ${data.message}</span>`;
+                        button.disabled = false;
+                        ws.close();
+                        stream.getTracks().forEach(track => track.stop());
+                        audioContext.close();
+                    }
+                };
+
+                const recordNode = new AudioWorkletNode(audioContext, 'record-audio-processor');
+                recordNode.connect(audioContext.destination);
+                
+                recordNode.port.onmessage = (event) => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(event.data.data.buffer);
+                    }
+                };
+
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(recordNode);
+
+            } catch (error) {
+                status.innerHTML = `<span class="status error">Error: ${error.message}</span>`;
+                button.disabled = false;
+            }
+        }
+
+        // Speaker Identification
+        async function toggleSpeakerID() {
+            if (speakerIdWS) {
+                stopSpeakerID();
+            } else {
+                startSpeakerID();
+            }
+        }
+
+        async function startSpeakerID() {
+            const button = document.getElementById('speakerIdButton');
+            const status = document.getElementById('speakerIdStatus');
+            const output = document.getElementById('speakerIdOutput');
+
+            try {
+                speakerIdStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                speakerIdAudioContext = new AudioContext({ sampleRate: 16000 });
+                await speakerIdAudioContext.audioWorklet.addModule(audioWorkletUrl);
+
+                speakerIdWS = new WebSocket('ws://localhost:8257/speaker_id');
+                output.textContent = 'Listening for speakers...\n';
+
+                speakerIdWS.onopen = () => {
+                    button.textContent = 'Stop Identification';
+                    button.classList.add('danger');
+                    status.innerHTML = '<span class="recording"></span> Identifying...';
+                };
+
+                speakerIdWS.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    const timestamp = new Date().toLocaleTimeString();
+                    const speaker = data.speaker_id === 'unknown' ? 'Unknown Speaker' : data.speaker_id;
+                    const confidence = (data.confidence * 100).toFixed(1);
+                    output.textContent += `[${timestamp}] ${speaker} (Confidence: ${confidence}%)\n`;
+                };
+
+                speakerIdWS.onerror = () => {
+                    status.textContent = 'Error: Connection failed';
+                    stopSpeakerID();
+                };
+
+                speakerIdRecordNode = new AudioWorkletNode(speakerIdAudioContext, 'record-audio-processor');
+                speakerIdRecordNode.connect(speakerIdAudioContext.destination);
+                
+                speakerIdRecordNode.port.onmessage = (event) => {
+                    if (speakerIdWS && speakerIdWS.readyState === WebSocket.OPEN) {
+                        speakerIdWS.send(event.data.data.buffer);
+                    }
+                };
+
+                const source = speakerIdAudioContext.createMediaStreamSource(speakerIdStream);
+                source.connect(speakerIdRecordNode);
+
+            } catch (error) {
+                status.textContent = 'Error: ' + error.message;
+                stopSpeakerID();
+            }
+        }
+
+        function stopSpeakerID() {
+            const button = document.getElementById('speakerIdButton');
+            const status = document.getElementById('speakerIdStatus');
+
+            if (speakerIdWS) {
+                speakerIdWS.close();
+                speakerIdWS = null;
+            }
+            if (speakerIdStream) {
+                speakerIdStream.getTracks().forEach(track => track.stop());
+                speakerIdStream = null;
+            }
+            if (speakerIdAudioContext) {
+                speakerIdAudioContext.close();
+                speakerIdAudioContext = null;
+            }
+
+            button.textContent = 'Start Identification';
+            button.classList.remove('danger');
+            status.textContent = '';
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            // Disable all buttons initially
+            setButtonsEnabled(false);
+            
+            // Start health check
+            checkHealth();
+        });
+    </script>
+</body>
+</html>

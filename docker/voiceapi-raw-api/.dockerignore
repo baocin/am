@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+models/*
+!models/.gitkeep
+*.wav
+*.mp3
+*.log
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+*.md
+!API.md
+
+# Configuration files
+!known_speakers.json
+
+# Frontend files (excluded from API container)
+assets/
+voiceapi-frontend/
+*.js
+*.css
+images/
+# Keep index.html for the demo page
+!index.html
+
+# Build artifacts
+build/
+dist/
+*.egg-info/

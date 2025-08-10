@@ -1,0 +1,72 @@
+# CPU-optimized Dockerfile for VoiceAPI
+FROM python:3.11-slim
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    TZ=America/New_York \
+    DEBIAN_FRONTEND=noninteractive \
+    OMP_NUM_THREADS=4 \
+    MKL_NUM_THREADS=4 \
+    NUMEXPR_NUM_THREADS=4
+
+# Install system dependencies and timezone data
+RUN apt-get update && apt-get install -y \
+    curl \
+    bzip2 \
+    tzdata \
+    libsndfile1 \
+    libgomp1 \
+    ffmpeg \
+    && ln -sf /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo $TZ > /etc/timezone \
+    && dpkg-reconfigure -f noninteractive tzdata \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -u 1000 -s /bin/bash voiceapi
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies with CPU-optimized packages
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir \
+    onnxruntime==1.20.1 \
+    && rm -rf ~/.cache/pip
+
+# Copy application code
+COPY --chown=voiceapi:voiceapi . .
+
+# Copy known speakers file if it exists
+COPY --chown=voiceapi:voiceapi known_speakers.json* /app/
+
+# Create models directory (models will be mounted as volume)
+RUN mkdir -p models && chown -R voiceapi:voiceapi models
+
+# Switch to non-root user
+USER voiceapi
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Run with CPU provider and optimized settings
+CMD ["python", "app.py", \
+     "--addr", "0.0.0.0", \
+     "--port", "8000", \
+     "--asr-provider", "cpu", \
+     "--tts-provider", "cpu", \
+     "--threads", "4", \
+     "--models-root", "/app/models", \
+     "--asr-model", "parakeet-offline", \
+     "--tts-model", "kokoro-multi-lang-v1_0", \
+     "--speaker-model", "nemo-speakernet", \
+     "--asr-lang", "en"]
