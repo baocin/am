@@ -35,7 +35,7 @@ declare -A SERVICE_ERRORS
 declare -A SERVICE_CONFIGS=(
     ["stt-whisper"]="8257"
     ["nomic-embed-api"]="8003"
-    ["rapidocr-raw-api"]="8004"
+    ["rapidocr-raw-api"]="8000"
     ["yunet-face-detection-raw-api"]="8002"
     ["voiceapi-raw-api"]="8257"
 )
@@ -56,13 +56,15 @@ print_subheader() {
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 }
 
-# Function to check if port is in use
+# Function to check if port is accessible via HTTP
 check_port() {
     local port=$1
-    if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
-        return 0  # Port is in use
+    if curl -s -f -m 2 "http://localhost:$port/health" > /dev/null 2>&1 || \
+       curl -s -f -m 2 "http://localhost:$port/healthz" > /dev/null 2>&1 || \
+       curl -s -f -m 2 "http://localhost:$port/" > /dev/null 2>&1; then
+        return 0  # Port is accessible
     else
-        return 1  # Port is free
+        return 1  # Port is not accessible
     fi
 }
 
@@ -331,42 +333,7 @@ main() {
     generate_summary
     exit_code=$?
     
-    # Save report to file
-    report_file="$BASE_DIR/test-report-$(date '+%Y%m%d-%H%M%S').txt"
-    echo ""
-    echo -e "${CYAN}Saving report to: $report_file${NC}"
-    
-    # Generate text report
-    {
-        echo "DOCKER SERVICES TEST REPORT"
-        echo "Generated: $(date '+%Y-%m-%d %H:%M:%S')"
-        echo "=================================="
-        echo ""
-        echo "SUMMARY:"
-        echo "  Total Services: $TOTAL_SERVICES"
-        echo "  Running: $SERVICES_RUNNING"
-        echo "  Failed: $SERVICES_FAILED"
-        echo "  Skipped: $SERVICES_SKIPPED"
-        echo "  Tests Passed: $ALL_TESTS_PASSED"
-        echo "  Tests Failed: $ALL_TESTS_FAILED"
-        echo ""
-        echo "SERVICE DETAILS:"
-        for service_dir in "$BASE_DIR"/*; do
-            if [ -d "$service_dir" ] && [ -f "$service_dir/docker-compose.yml" ]; then
-                service_name=$(basename "$service_dir")
-                echo "  - $service_name:"
-                echo "      Status: ${SERVICE_STATUS[$service_name]:-NOT_RUN}"
-                echo "      Port: ${SERVICE_PORTS[$service_name]:-N/A}"
-                echo "      Tests Passed: ${SERVICE_TESTS_PASSED[$service_name]:-0}"
-                echo "      Tests Failed: ${SERVICE_TESTS_FAILED[$service_name]:-0}"
-                if [ -n "${SERVICE_ERRORS[$service_name]}" ]; then
-                    echo "      Error: ${SERVICE_ERRORS[$service_name]}"
-                fi
-            fi
-        done
-    } > "$report_file"
-    
-    echo -e "${GREEN}Report saved successfully${NC}"
+    # Report saving disabled - output already shown in terminal
     echo ""
     
     exit $exit_code
