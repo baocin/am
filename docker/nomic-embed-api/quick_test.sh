@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Quick test script for Nomic Embed API
-API_URL="http://localhost:8002"
+API_URL="http://localhost:8003"
 
 echo "Quick Nomic Embed API Test"
 echo "=========================="

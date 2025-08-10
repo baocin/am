@@ -19,7 +19,7 @@ echo ""
 declare -A SERVICES=(
     ["voice-api"]="8257"
     ["nomic-embed-api"]="8003"
-    ["rapidocr-raw-api"]="8004"
+    ["rapidocr-raw-api"]="8000"
     ["yunet-face-detection"]="8002"
 )
 
