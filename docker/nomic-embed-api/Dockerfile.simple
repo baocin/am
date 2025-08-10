@@ -1,0 +1,24 @@
+FROM python:3.11-slim
+
+# Install minimal system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy simplified requirements
+COPY requirements_simple.txt requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy simplified application
+COPY app_simple.py app.py
+
+# Create models directory (for consistency, even though not used)
+RUN mkdir -p /app/models
+
+# Expose port
+EXPOSE 8000
+
+# Run the application
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
