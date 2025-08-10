@@ -1,215 +1,177 @@
 #!/bin/bash
 
 # YuNet Face Detection API Test Script
-# Tests all API endpoints with face images
+# Follows api-docker-contract.md standards
 
-BASE_URL="http://localhost:8001"
-TEST_DIR="test_images"
-
-echo "========================================="
-echo "YuNet Face Detection API Test Suite"
-echo "========================================="
-echo ""
-
-# Color codes for output
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
+# Colors for output
 RED='\033[0;31m'
-YELLOW='\033[0;33m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Function to print test headers
-print_test() {
-    echo -e "${BLUE}Testing: $1${NC}"
-    echo "----------------------------------------"
+# Configuration
+BASE_URL="${BASE_URL:-http://localhost:8000}"
+VERBOSE="${VERBOSE:-false}"
+TEST_DIR="test"
+
+# Test counters
+TESTS_PASSED=0
+TESTS_FAILED=0
+
+# Helper function for running tests
+run_test() {
+    local test_name="$1"
+    local curl_cmd="$2"
+    local expected_status="$3"
+    local expected_contains="$4"
+    
+    echo -n "Testing $test_name... "
+    
+    # Execute curl command
+    if [ "$VERBOSE" == "true" ]; then
+        response=$(eval "$curl_cmd -w '\n%{http_code}'" 2>&1)
+        status_code=$(echo "$response" | tail -n 1)
+        body=$(echo "$response" | head -n -1)
+    else
+        response=$(eval "$curl_cmd -w '\n%{http_code}' -s" 2>&1)
+        status_code=$(echo "$response" | tail -n 1)
+        body=$(echo "$response" | head -n -1)
+    fi
+    
+    # Check status code
+    if [ "$status_code" != "$expected_status" ]; then
+        echo -e "${RED}FAILED${NC} (Status: $status_code, Expected: $expected_status)"
+        [ "$VERBOSE" == "true" ] && echo "Response: $body"
+        ((TESTS_FAILED++))
+        return 1
+    fi
+    
+    # Check response contains expected string
+    if [ -n "$expected_contains" ]; then
+        if [[ ! "$body" == *"$expected_contains"* ]]; then
+            echo -e "${RED}FAILED${NC} (Response missing: $expected_contains)"
+            [ "$VERBOSE" == "true" ] && echo "Response: $body"
+            ((TESTS_FAILED++))
+            return 1
+        fi
+    fi
+    
+    echo -e "${GREEN}PASSED${NC}"
+    ((TESTS_PASSED++))
+    return 0
 }
 
-# Check if test_images directory exists
+echo "==================================="
+echo "YuNet Face Detection API Tests"
+echo "Base URL: $BASE_URL"
+echo "==================================="
+
+# Check if test directory exists
 if [ ! -d "$TEST_DIR" ]; then
     echo -e "${YELLOW}Warning: $TEST_DIR directory not found!${NC}"
-    echo "Creating test_images directory..."
+    echo "Creating test directory with sample files..."
     mkdir -p "$TEST_DIR"
-    echo "Please add face1.png and face2.png to the $TEST_DIR directory."
-    echo ""
 fi
 
-# 1. Health & Info Endpoints
-print_test "API Root Info"
-curl -X GET "$BASE_URL/"
-echo -e "\n"
+# Test 1: Health Check
+run_test "Health Check" \
+    "curl -X GET $BASE_URL/health" \
+    "200" \
+    '"status":"healthy"'
 
-print_test "Health Check (/health)"
-curl -X GET "$BASE_URL/health"
-echo -e "\n"
+# Test 2: Alternative Health Check (Kubernetes-style)
+run_test "Health Check (K8s)" \
+    "curl -X GET $BASE_URL/healthz" \
+    "200" \
+    '"status":"healthy"'
 
-print_test "Health Check (/healthz)"
-curl -X GET "$BASE_URL/healthz"
-echo -e "\n"
+# Test 3: Root Endpoint
+run_test "Root Info" \
+    "curl -X GET $BASE_URL/" \
+    "200" \
+    '"service":"YuNet Face Detection Raw API"'
 
-# 2. Face Detection from File Upload
-if [ -f "$TEST_DIR/face1.png" ]; then
-    print_test "Face Detection from File - face1.png"
-    curl -X POST "$BASE_URL/face-detect/" \
-      -F "file=@$TEST_DIR/face1.png"
-    echo -e "\n"
-    
-    print_test "Face Detection with custom thresholds - face1.png"
-    curl -X POST "$BASE_URL/face-detect/file" \
-      -F "file=@$TEST_DIR/face1.png" \
-      -F "score_threshold=0.5" \
-      -F "nms_threshold=0.4" \
-      -F "top_k=100"
-    echo -e "\n"
+# Test 4: File Upload - Valid Image
+if [ -f "$TEST_DIR/test-face.jpg" ]; then
+    run_test "Face Detection - File Upload" \
+        "curl -X POST -F 'file=@$TEST_DIR/test-face.jpg' $BASE_URL/face-detect/file" \
+        "200" \
+        '"success":true'
 else
-    echo -e "${YELLOW}Skipping: $TEST_DIR/face1.png not found${NC}\n"
+    echo -e "${YELLOW}SKIPPED${NC} Face Detection - File Upload (test/test-face.jpg not found)"
 fi
 
-if [ -f "$TEST_DIR/face2.png" ]; then
-    print_test "Face Detection from File - face2.png"
-    curl -X POST "$BASE_URL/face-detect/" \
-      -F "file=@$TEST_DIR/face2.png"
-    echo -e "\n"
+# Test 5: File Upload with Parameters
+if [ -f "$TEST_DIR/test-face.jpg" ]; then
+    run_test "Face Detection - File with Params" \
+        "curl -X POST -F 'file=@$TEST_DIR/test-face.jpg' -F 'score_threshold=0.5' -F 'visualize=true' $BASE_URL/face-detect/file" \
+        "200" \
+        '"success":true'
+fi
+
+# Test 6: Base64 Request
+if [ -f "$TEST_DIR/test-base64.txt" ]; then
+    run_test "Face Detection - Base64" \
+        "curl -X POST -H 'Content-Type: application/json' -d '{\"image_base64\":\"'$(cat $TEST_DIR/test-base64.txt)'\"}' $BASE_URL/face-detect/base64" \
+        "200" \
+        '"success":true'
 else
-    echo -e "${YELLOW}Skipping: $TEST_DIR/face2.png not found${NC}\n"
+    echo -e "${YELLOW}SKIPPED${NC} Face Detection - Base64 (test/test-base64.txt not found)"
 fi
 
-# Test with JPEG if available
-if [ -f "$TEST_DIR/face1.jpg" ]; then
-    print_test "Face Detection from File - face1.jpg (JPEG format)"
-    curl -X POST "$BASE_URL/face-detect/" \
-      -F "file=@$TEST_DIR/face1.jpg"
-    echo -e "\n"
-else
-    echo -e "${YELLOW}Skipping: $TEST_DIR/face1.jpg not found${NC}\n"
+# Test 7: URL Request (using sample image)
+run_test "Face Detection - URL (Lena)" \
+    "curl -X POST -H 'Content-Type: application/json' -d '{\"image_url\":\"https://raw.githubusercontent.com/opencv/opencv/master/samples/data/lena.jpg\"}' $BASE_URL/face-detect/url" \
+    "200" \
+    '"success":true'
+
+# Test 8: Invalid Base64 Request
+run_test "Invalid Base64 Request" \
+    "curl -X POST -H 'Content-Type: application/json' -d '{\"image_base64\":\"invalid_base64\"}' $BASE_URL/face-detect/base64" \
+    "200" \
+    '"success":false'
+
+# Test 9: Empty JSON Request (Should fail with 422)
+run_test "Empty JSON Request" \
+    "curl -X POST -H 'Content-Type: application/json' -d '{}' $BASE_URL/face-detect/base64" \
+    "422" \
+    ""
+
+# Test 10: Invalid URL
+run_test "Invalid URL Request" \
+    "curl -X POST -H 'Content-Type: application/json' -d '{\"image_url\":\"https://invalid-url-that-does-not-exist.com/image.jpg\"}' $BASE_URL/face-detect/url" \
+    "200" \
+    '"success":false'
+
+# Test 11: Check for face count in response
+if [ -f "$TEST_DIR/test-face.jpg" ]; then
+    echo -n "Testing Face Count Response... "
+    response=$(curl -s -X POST -F "file=@$TEST_DIR/test-face.jpg" "$BASE_URL/face-detect/file")
+    if echo "$response" | grep -q '"face_count":'; then
+        echo -e "${GREEN}PASSED${NC}"
+        ((TESTS_PASSED++))
+    else
+        echo -e "${RED}FAILED${NC} (face_count field missing)"
+        ((TESTS_FAILED++))
+    fi
 fi
 
-# 3. Face Detection from Base64
-if [ -f "$TEST_DIR/face1.png" ]; then
-    print_test "Face Detection from Base64 - face1.png"
-    # Create base64 encoded version
-    BASE64_CONTENT=$(base64 -i "$TEST_DIR/face1.png" | tr -d '\n')
-    curl -X POST "$BASE_URL/face-detect/base64" \
-      -H "Content-Type: application/json" \
-      -d "{
-        \"image_base64\": \"$BASE64_CONTENT\",
-        \"score_threshold\": 0.7,
-        \"nms_threshold\": 0.3,
-        \"top_k\": 5000
-      }"
-    echo -e "\n"
-else
-    echo -e "${YELLOW}Skipping base64 test: $TEST_DIR/face1.png not found${NC}\n"
+# Test 12: Processing time check
+if [ -f "$TEST_DIR/test-face.jpg" ]; then
+    echo -n "Testing Processing Time in Response... "
+    response=$(curl -s -X POST -F "file=@$TEST_DIR/test-face.jpg" "$BASE_URL/face-detect/file")
+    if echo "$response" | grep -q '"processing_time_ms":'; then
+        echo -e "${GREEN}PASSED${NC}"
+        ((TESTS_PASSED++))
+    else
+        echo -e "${RED}FAILED${NC} (processing_time_ms field missing)"
+        ((TESTS_FAILED++))
+    fi
 fi
 
-# 4. Face Detection from URL
-print_test "Face Detection from URL - Sample face image"
-curl -X POST "$BASE_URL/face-detect/url" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "image_url": "https://raw.githubusercontent.com/opencv/opencv/master/samples/data/lena.jpg",
-    "score_threshold": 0.7,
-    "nms_threshold": 0.3,
-    "top_k": 5000
-  }'
-echo -e "\n"
+echo "==================================="
+echo -e "Results: ${GREEN}$TESTS_PASSED passed${NC}, ${RED}$TESTS_FAILED failed${NC}"
+echo "==================================="
 
-print_test "Face Detection from URL - Group photo"
-curl -X POST "$BASE_URL/face-detect/url" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Beatles_and_Lill-Babs_1963.jpg/640px-Beatles_and_Lill-Babs_1963.jpg",
-    "score_threshold": 0.5,
-    "nms_threshold": 0.3,
-    "top_k": 100
-  }'
-echo -e "\n"
-
-# 5. Error Handling Tests
-print_test "Error Test - Invalid Base64"
-curl -X POST "$BASE_URL/face-detect/base64" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "image_base64": "invalid_base64_string",
-    "score_threshold": 0.7
-  }'
-echo -e "\n"
-
-print_test "Error Test - Missing Required Field"
-curl -X POST "$BASE_URL/face-detect/base64" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "score_threshold": 0.7
-  }'
-echo -e "\n"
-
-print_test "Error Test - Invalid URL"
-curl -X POST "$BASE_URL/face-detect/url" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "image_url": "https://invalid-url-that-does-not-exist.com/image.jpg"
-  }'
-echo -e "\n"
-
-# 6. Performance Test
-if [ -f "$TEST_DIR/face1.png" ]; then
-    print_test "Performance Test - Measure response time"
-    time curl -X POST "$BASE_URL/face-detect/" \
-      -F "file=@$TEST_DIR/face1.png" \
-      -o /dev/null -s -w "\nStatus: %{http_code}\nTime: %{time_total}s\n"
-    echo -e "\n"
-else
-    echo -e "${YELLOW}Skipping performance test: $TEST_DIR/face1.png not found${NC}\n"
-fi
-
-# 7. Concurrent requests test
-if [ -f "$TEST_DIR/face1.png" ]; then
-    print_test "Concurrent Requests Test (3 parallel requests)"
-    for i in {1..3}; do
-      curl -X POST "$BASE_URL/face-detect/" \
-        -F "file=@$TEST_DIR/face1.png" \
-        -o /dev/null -s -w "Request $i - Status: %{http_code}, Time: %{time_total}s\n" &
-    done
-    wait
-    echo -e "\n"
-else
-    echo -e "${YELLOW}Skipping concurrent test: $TEST_DIR/face1.png not found${NC}\n"
-fi
-
-# 8. Pretty printed JSON response
-if [ -f "$TEST_DIR/face1.png" ]; then
-    print_test "Face Detection with Pretty JSON Output"
-    curl -X POST "$BASE_URL/face-detect/" \
-      -F "file=@$TEST_DIR/face1.png" \
-      -s | python3 -m json.tool 2>/dev/null || echo "Install python3 for pretty JSON output"
-    echo -e "\n"
-else
-    echo -e "${YELLOW}Skipping pretty JSON test: $TEST_DIR/face1.png not found${NC}\n"
-fi
-
-# Summary
-echo "========================================="
-echo -e "${GREEN}Test Suite Complete${NC}"
-echo "========================================="
-echo ""
-echo "Usage Notes:"
-echo "1. Make sure the YuNet service is running: docker-compose up"
-echo "2. Place test images in $TEST_DIR/ directory:"
-echo "   - face1.png: Single face image"
-echo "   - face2.png: Multiple faces or different angle"
-echo "3. Download YuNet model: ./download_model.sh"
-echo "4. Check docker logs for errors: docker logs yunet-face-detection"
-echo ""
-echo "Quick Tests:"
-echo "  ./test.sh                    # Run all tests"
-echo "  curl $BASE_URL/health        # Quick health check"
-echo "  curl $BASE_URL/docs          # Open API documentation"
-echo ""
-echo "Required Test Images:"
-echo "  $TEST_DIR/face1.png         # Single face test image"
-echo "  $TEST_DIR/face2.png         # Multiple faces test image"
-echo ""
-echo "Model Configuration:"
-echo "  - Model: face_detection_yunet_2023mar_int8.onnx"
-echo "  - Score Threshold: 0.7"
-echo "  - NMS Threshold: 0.3"
-echo "  - Top K: 5000"
+# Exit with appropriate code
+[ $TESTS_FAILED -eq 0 ] && exit 0 || exit 1

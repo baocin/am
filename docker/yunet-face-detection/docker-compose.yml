@@ -5,7 +5,7 @@ services:
     build: .
     container_name: yunet-face-detection
     ports:
-      - "8001:8000"
+      - "${PORT:-8000}:8000"
     volumes:
       - ./models:/app/models  # YuNet model files
       - ./temp:/tmp  # For visualization outputs
