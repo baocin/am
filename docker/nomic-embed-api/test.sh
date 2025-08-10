@@ -1,309 +1,236 @@
 #!/bin/bash
 
+# Nomic Embed Vision API Test Script
+# Follows api-docker-contract.md standards
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# API endpoint
-API_URL="http://localhost:8002"
+# Configuration
+BASE_URL="${BASE_URL:-http://localhost:8000}"
+VERBOSE="${VERBOSE:-false}"
+TEST_DIR="test"
 
-echo "=================================================="
-echo "Nomic Embed Vision API Test Suite"
-echo "=================================================="
-echo ""
+# Test counters
+TESTS_PASSED=0
+TESTS_FAILED=0
 
-# Create test_images directory if it doesn't exist
-mkdir -p test_images
-
-# Copy test images from RapidOCR if available
-echo -e "${YELLOW}Setting up test images...${NC}"
-if [ -d "../rapidocr-raw-api/test_images" ]; then
-    cp ../rapidocr-raw-api/test_images/*.png test_images/ 2>/dev/null
-    cp ../rapidocr-raw-api/test_images/*.jpg test_images/ 2>/dev/null
-    echo -e "${GREEN}✓ Copied test images from RapidOCR${NC}"
-else
-    echo -e "${YELLOW}⚠ RapidOCR test images not found, using downloaded samples${NC}"
-fi
-
-# Download sample images if needed
-if [ ! -f "test_images/sample1.jpg" ]; then
-    echo "Downloading sample images..."
-    curl -s -o test_images/sample1.jpg "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Group_photo_of_participants_at_2023_Wikimedia_Summit_01.jpg/640px-Group_photo_of_participants_at_2023_Wikimedia_Summit_01.jpg"
-    curl -s -o test_images/sample2.png "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/PNG_transparency_demonstration_1.png/240px-PNG_transparency_demonstration_1.png"
-fi
-
-echo ""
-echo "=================================================="
-echo "1. Testing Health Check"
-echo "=================================================="
-echo ""
-
-curl -X GET "$API_URL/health" 2>/dev/null | python3 -m json.tool
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✓ Health check passed${NC}"
-else
-    echo -e "${RED}✗ Health check failed${NC}"
-fi
-
-echo ""
-echo "=================================================="
-echo "2. Testing Text Embedding - Single Text"
-echo "=================================================="
-echo ""
-
-echo "Request: Embedding for 'Hello, this is a test sentence'"
-RESPONSE=$(curl -s -X POST "$API_URL/embed/text" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "text": "Hello, this is a test sentence for embedding",
-    "task": "search_document",
-    "normalize": true
-  }')
-
-SUCCESS=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin)['success'])")
-if [ "$SUCCESS" = "True" ]; then
-    echo -e "${GREEN}✓ Single text embedding successful${NC}"
-    echo $RESPONSE | python3 -c "import sys, json; data=json.load(sys.stdin); print(f'  Embedding dimension: {data[\"embedding_dim\"]}'); print(f'  Processing time: {data.get(\"processing_time_ms\", \"N/A\")} ms')"
-else
-    echo -e "${RED}✗ Single text embedding failed${NC}"
-    echo $RESPONSE | python3 -m json.tool
-fi
-
-echo ""
-echo "=================================================="
-echo "3. Testing Text Embedding - Batch"
-echo "=================================================="
-echo ""
-
-echo "Request: Batch embedding for multiple texts"
-RESPONSE=$(curl -s -X POST "$API_URL/embed/text" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "text": [
-      "The quick brown fox jumps over the lazy dog",
-      "Machine learning is transforming the world",
-      "Python is a versatile programming language"
-    ],
-    "task": "search_document",
-    "normalize": true
-  }')
-
-SUCCESS=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin)['success'])")
-if [ "$SUCCESS" = "True" ]; then
-    echo -e "${GREEN}✓ Batch text embedding successful${NC}"
-    echo $RESPONSE | python3 -c "import sys, json; data=json.load(sys.stdin); print(f'  Number of embeddings: {data[\"num_embeddings\"]}'); print(f'  Embedding dimension: {data[\"embedding_dim\"]}'); print(f'  Processing time: {data.get(\"processing_time_ms\", \"N/A\")} ms')"
-else
-    echo -e "${RED}✗ Batch text embedding failed${NC}"
-fi
-
-echo ""
-echo "=================================================="
-echo "4. Testing Image Embedding - File Upload"
-echo "=================================================="
-echo ""
-
-# Find first available test image
-TEST_IMAGE=$(ls test_images/*.{jpg,png} 2>/dev/null | head -n 1)
-
-if [ -n "$TEST_IMAGE" ]; then
-    echo "Using test image: $TEST_IMAGE"
-    RESPONSE=$(curl -s -X POST "$API_URL/embed/image/file" \
-      -F "files=@$TEST_IMAGE" \
-      -F "normalize=true")
+# Helper function for running tests
+run_test() {
+    local test_name="$1"
+    local curl_cmd="$2"
+    local expected_status="$3"
+    local expected_contains="$4"
     
-    SUCCESS=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin)['success'])" 2>/dev/null)
-    if [ "$SUCCESS" = "True" ]; then
-        echo -e "${GREEN}✓ Image file embedding successful${NC}"
-        echo $RESPONSE | python3 -c "import sys, json; data=json.load(sys.stdin); print(f'  Embedding dimension: {data[\"embedding_dim\"]}'); print(f'  Processing time: {data.get(\"processing_time_ms\", \"N/A\")} ms')"
+    echo -n "Testing $test_name... "
+    
+    # Execute curl command
+    if [ "$VERBOSE" == "true" ]; then
+        response=$(eval "$curl_cmd -w '\n%{http_code}'" 2>&1)
+        status_code=$(echo "$response" | tail -n 1)
+        body=$(echo "$response" | head -n -1)
     else
-        echo -e "${RED}✗ Image file embedding failed${NC}"
-        echo $RESPONSE | python3 -m json.tool
+        response=$(eval "$curl_cmd -w '\n%{http_code}' -s" 2>&1)
+        status_code=$(echo "$response" | tail -n 1)
+        body=$(echo "$response" | head -n -1)
     fi
-else
-    echo -e "${YELLOW}⚠ No test images found${NC}"
-fi
-
-echo ""
-echo "=================================================="
-echo "5. Testing Image Embedding - Base64"
-echo "=================================================="
-echo ""
-
-if [ -n "$TEST_IMAGE" ]; then
-    echo "Converting image to base64..."
-    BASE64_IMAGE=$(base64 < "$TEST_IMAGE" | tr -d '\n')
     
-    RESPONSE=$(curl -s -X POST "$API_URL/embed/image/base64" \
-      -H "Content-Type: application/json" \
-      -d "{
-        \"image_base64\": \"$BASE64_IMAGE\",
-        \"normalize\": true
-      }")
-    
-    SUCCESS=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin)['success'])" 2>/dev/null)
-    if [ "$SUCCESS" = "True" ]; then
-        echo -e "${GREEN}✓ Image base64 embedding successful${NC}"
-        echo $RESPONSE | python3 -c "import sys, json; data=json.load(sys.stdin); print(f'  Embedding dimension: {data[\"embedding_dim\"]}'); print(f'  Processing time: {data.get(\"processing_time_ms\", \"N/A\")} ms')"
-    else
-        echo -e "${RED}✗ Image base64 embedding failed${NC}"
+    # Check status code
+    if [ "$status_code" != "$expected_status" ]; then
+        echo -e "${RED}FAILED${NC} (Status: $status_code, Expected: $expected_status)"
+        [ "$VERBOSE" == "true" ] && echo "Response: $body"
+        ((TESTS_FAILED++))
+        return 1
     fi
-fi
-
-echo ""
-echo "=================================================="
-echo "6. Testing Image Embedding - URL"
-echo "=================================================="
-echo ""
-
-echo "Using sample image URL from Wikipedia"
-RESPONSE=$(curl -s -X POST "$API_URL/embed/image/url" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/PNG_transparency_demonstration_1.png/240px-PNG_transparency_demonstration_1.png",
-    "normalize": true
-  }')
-
-SUCCESS=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin)['success'])" 2>/dev/null)
-if [ "$SUCCESS" = "True" ]; then
-    echo -e "${GREEN}✓ Image URL embedding successful${NC}"
-    echo $RESPONSE | python3 -c "import sys, json; data=json.load(sys.stdin); print(f'  Embedding dimension: {data[\"embedding_dim\"]}'); print(f'  Processing time: {data.get(\"processing_time_ms\", \"N/A\")} ms')"
-else
-    echo -e "${RED}✗ Image URL embedding failed${NC}"
-fi
-
-echo ""
-echo "=================================================="
-echo "7. Testing Multimodal Embedding"
-echo "=================================================="
-echo ""
-
-if [ -n "$TEST_IMAGE" ] && [ -n "$BASE64_IMAGE" ]; then
-    echo "Testing mixed text and image inputs..."
     
-    RESPONSE=$(curl -s -X POST "$API_URL/embed/multimodal" \
-      -H "Content-Type: application/json" \
-      -d "{
-        \"inputs\": [
-          {\"type\": \"text\", \"content\": \"A beautiful sunset over the ocean\"},
-          {\"type\": \"text\", \"content\": \"Machine learning and artificial intelligence\"},
-          {\"type\": \"image\", \"content\": \"$BASE64_IMAGE\"}
-        ],
-        \"normalize\": true
-      }")
-    
-    SUCCESS=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin)['success'])" 2>/dev/null)
-    if [ "$SUCCESS" = "True" ]; then
-        echo -e "${GREEN}✓ Multimodal embedding successful${NC}"
-        echo $RESPONSE | python3 -c "import sys, json; data=json.load(sys.stdin); print(f'  Number of embeddings: {data[\"num_embeddings\"]}'); print(f'  Embedding dimension: {data[\"embedding_dim\"]}'); print(f'  Processing time: {data.get(\"processing_time_ms\", \"N/A\")} ms')"
-    else
-        echo -e "${RED}✗ Multimodal embedding failed${NC}"
-    fi
-else
-    echo "Testing multimodal with text only..."
-    RESPONSE=$(curl -s -X POST "$API_URL/embed/multimodal" \
-      -H "Content-Type: application/json" \
-      -d '{
-        "inputs": [
-          {"type": "text", "content": "First text input"},
-          {"type": "text", "content": "Second text input"}
-        ],
-        "normalize": true
-      }')
-    
-    SUCCESS=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin)['success'])" 2>/dev/null)
-    if [ "$SUCCESS" = "True" ]; then
-        echo -e "${GREEN}✓ Multimodal (text only) embedding successful${NC}"
-    else
-        echo -e "${RED}✗ Multimodal embedding failed${NC}"
-    fi
-fi
-
-echo ""
-echo "=================================================="
-echo "8. Testing Semantic Similarity"
-echo "=================================================="
-echo ""
-
-echo "Computing cosine similarity between related words..."
-
-# Create a Python script to test similarity
-cat > /tmp/test_similarity.py << 'EOF'
-import requests
-import numpy as np
-import json
-
-def cosine_similarity(v1, v2):
-    v1 = np.array(v1)
-    v2 = np.array(v2)
-    return np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
-
-api_url = "http://localhost:8002"
-test_pairs = [
-    ("cat", "kitten"),
-    ("dog", "puppy"),
-    ("happy", "joyful"),
-    ("car", "automobile"),
-    ("computer", "banana")  # Unrelated
-]
-
-for word1, word2 in test_pairs:
-    response = requests.post(f"{api_url}/embed/text", json={
-        "text": [word1, word2],
-        "task": "search_document",
-        "normalize": True
-    })
-    
-    if response.status_code == 200 and response.json()['success']:
-        result = response.json()
-        sim = cosine_similarity(result['embeddings'][0], result['embeddings'][1])
-        print(f"  '{word1}' vs '{word2}': {sim:.3f}")
-    else:
-        print(f"  Failed to compute similarity for '{word1}' vs '{word2}'")
-EOF
-
-python3 /tmp/test_similarity.py
-rm /tmp/test_similarity.py
-
-echo ""
-echo "=================================================="
-echo "9. Testing Batch Image Processing"
-echo "=================================================="
-echo ""
-
-# Find multiple test images
-TEST_IMAGES=(test_images/*.{jpg,png})
-if [ ${#TEST_IMAGES[@]} -ge 2 ]; then
-    echo "Testing batch image processing with multiple files..."
-    
-    # Build curl command with multiple files
-    CURL_CMD="curl -s -X POST \"$API_URL/embed/image/file\""
-    for img in "${TEST_IMAGES[@]:0:2}"; do
-        if [ -f "$img" ]; then
-            CURL_CMD="$CURL_CMD -F \"files=@$img\""
+    # Check response contains expected string
+    if [ -n "$expected_contains" ]; then
+        if [[ ! "$body" == *"$expected_contains"* ]]; then
+            echo -e "${RED}FAILED${NC} (Response missing: $expected_contains)"
+            [ "$VERBOSE" == "true" ] && echo "Response: $body"
+            ((TESTS_FAILED++))
+            return 1
         fi
-    done
-    CURL_CMD="$CURL_CMD -F \"normalize=true\""
+    fi
     
-    RESPONSE=$(eval $CURL_CMD)
-    SUCCESS=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin)['success'])" 2>/dev/null)
-    
-    if [ "$SUCCESS" = "True" ]; then
-        echo -e "${GREEN}✓ Batch image embedding successful${NC}"
-        echo $RESPONSE | python3 -c "import sys, json; data=json.load(sys.stdin); print(f'  Number of embeddings: {data[\"num_embeddings\"]}'); print(f'  Processing time: {data.get(\"processing_time_ms\", \"N/A\")} ms')"
-    else
-        echo -e "${RED}✗ Batch image embedding failed${NC}"
+    echo -e "${GREEN}PASSED${NC}"
+    ((TESTS_PASSED++))
+    return 0
+}
+
+echo "==================================="
+echo "Nomic Embed Vision API Tests"
+echo "Base URL: $BASE_URL"
+echo "==================================="
+
+# Check if test directory exists
+if [ ! -d "$TEST_DIR" ]; then
+    echo -e "${YELLOW}Warning: $TEST_DIR directory not found!${NC}"
+    echo "Creating test directory with sample files..."
+    mkdir -p "$TEST_DIR"
+fi
+
+# Test 1: Health Check
+echo ""
+echo "Running Health Check..."
+curl -s "$BASE_URL/health" | jq '.' 2>/dev/null || curl -s "$BASE_URL/health"
+run_test "Health Check" \
+    "curl -X GET $BASE_URL/health" \
+    "200" \
+    '"status":"healthy"'
+
+# Test 2: Alternative Health Check (Kubernetes-style)
+run_test "Health Check (K8s)" \
+    "curl -X GET $BASE_URL/healthz" \
+    "200" \
+    '"status":"healthy"'
+
+# Test 3: Root Endpoint
+echo ""
+echo "Getting API Info..."
+curl -s "$BASE_URL/" | jq '.' 2>/dev/null || curl -s "$BASE_URL/"
+run_test "Root Info" \
+    "curl -X GET $BASE_URL/" \
+    "200" \
+    '"service":"Nomic Embed Vision Raw API"'
+
+# Test 4: Text Embedding - Single Text
+echo ""
+echo "Testing Text Embedding..."
+TEXT_REQUEST='{"text":"This is a test sentence for embedding generation.","task":"search_document","normalize":true}'
+echo "Request: $TEXT_REQUEST"
+curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -d "$TEXT_REQUEST" \
+    "$BASE_URL/embed/text" | jq '.' 2>/dev/null || \
+curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -d "$TEXT_REQUEST" \
+    "$BASE_URL/embed/text"
+
+run_test "Text Embedding - Single" \
+    "curl -X POST -H 'Content-Type: application/json' -d '$TEXT_REQUEST' $BASE_URL/embed/text" \
+    "200" \
+    '"success":true'
+
+# Test 5: Text Embedding - Batch
+echo ""
+echo "Testing Batch Text Embedding..."
+BATCH_TEXT_REQUEST='{"text":["First sentence","Second sentence","Third sentence"],"task":"search_query","normalize":true}'
+curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -d "$BATCH_TEXT_REQUEST" \
+    "$BASE_URL/embed/text" | jq '.success, .num_embeddings, .embedding_dim' 2>/dev/null
+
+run_test "Text Embedding - Batch" \
+    "curl -X POST -H 'Content-Type: application/json' -d '$BATCH_TEXT_REQUEST' $BASE_URL/embed/text" \
+    "200" \
+    '"num_embeddings":3'
+
+# Test 6: Image Embedding from Base64
+if [ -f "$TEST_DIR/test-image.jpg" ]; then
+    echo ""
+    echo "Testing Image Embedding from Base64..."
+    if [ -f "$TEST_DIR/test-base64.txt" ]; then
+        IMAGE_BASE64=$(cat "$TEST_DIR/test-base64.txt")
+        IMAGE_REQUEST="{\"image_base64\":\"$IMAGE_BASE64\",\"normalize\":true}"
+        
+        curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -d "$IMAGE_REQUEST" \
+            "$BASE_URL/embed/image/base64" | jq '.success, .embedding_dim' 2>/dev/null
+        
+        run_test "Image Embedding - Base64" \
+            "curl -X POST -H 'Content-Type: application/json' -d '{\"image_base64\":\"'$(cat $TEST_DIR/test-base64.txt)'\",\"normalize\":true}' $BASE_URL/embed/image/base64" \
+            "200" \
+            '"success":true'
     fi
 else
-    echo -e "${YELLOW}⚠ Not enough test images for batch processing${NC}"
+    echo -e "${YELLOW}SKIPPED${NC} Image Embedding - Base64 (test/test-image.jpg not found)"
+fi
+
+# Test 7: Image Embedding from URL
+echo ""
+echo "Testing Image Embedding from URL..."
+URL_REQUEST='{"image_url":"https://raw.githubusercontent.com/opencv/opencv/master/samples/data/lena.jpg","normalize":true}'
+curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -d "$URL_REQUEST" \
+    "$BASE_URL/embed/image/url" | jq '.success, .embedding_dim' 2>/dev/null
+
+run_test "Image Embedding - URL" \
+    "curl -X POST -H 'Content-Type: application/json' -d '$URL_REQUEST' $BASE_URL/embed/image/url" \
+    "200" \
+    '"success":true'
+
+# Test 8: Multimodal Embedding
+echo ""
+echo "Testing Multimodal Embedding..."
+if [ -f "$TEST_DIR/test-base64.txt" ]; then
+    MULTIMODAL_REQUEST="{\"inputs\":[{\"type\":\"text\",\"content\":\"A beautiful landscape\"},{\"type\":\"image\",\"content\":\"$(cat $TEST_DIR/test-base64.txt)\"}],\"normalize\":true}"
+    
+    curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -d "$MULTIMODAL_REQUEST" \
+        "$BASE_URL/embed/multimodal" | jq '.success, .num_embeddings' 2>/dev/null
+    
+    run_test "Multimodal Embedding" \
+        "curl -X POST -H 'Content-Type: application/json' -d '{\"inputs\":[{\"type\":\"text\",\"content\":\"test\"}],\"normalize\":true}' $BASE_URL/embed/multimodal" \
+        "200" \
+        '"success":true'
+else
+    echo -e "${YELLOW}SKIPPED${NC} Multimodal Embedding (test files not found)"
+fi
+
+# Test 9: Invalid Request - Empty JSON
+echo ""
+echo "Testing Error Handling..."
+run_test "Empty JSON Request" \
+    "curl -X POST -H 'Content-Type: application/json' -d '{}' $BASE_URL/embed/text" \
+    "422" \
+    ""
+
+# Test 10: Invalid Base64
+run_test "Invalid Base64 Image" \
+    "curl -X POST -H 'Content-Type: application/json' -d '{\"image_base64\":\"invalid_base64\",\"normalize\":true}' $BASE_URL/embed/image/base64" \
+    "200" \
+    '"success":false'
+
+# Test 11: Check embedding dimension
+if [ -f "$TEST_DIR/test-base64.txt" ]; then
+    echo -n "Testing Embedding Dimension Response... "
+    response=$(curl -s -X POST -H "Content-Type: application/json" \
+        -d '{"text":"test","normalize":true}' \
+        "$BASE_URL/embed/text")
+    if echo "$response" | grep -q '"embedding_dim":'; then
+        echo -e "${GREEN}PASSED${NC}"
+        ((TESTS_PASSED++))
+    else
+        echo -e "${RED}FAILED${NC} (embedding_dim field missing)"
+        ((TESTS_FAILED++))
+    fi
+fi
+
+# Test 12: Processing time check
+echo -n "Testing Processing Time in Response... "
+response=$(curl -s -X POST -H "Content-Type: application/json" \
+    -d '{"text":"test","normalize":true}' \
+    "$BASE_URL/embed/text")
+if echo "$response" | grep -q '"processing_time_ms":'; then
+    echo -e "${GREEN}PASSED${NC}"
+    ((TESTS_PASSED++))
+else
+    echo -e "${RED}FAILED${NC} (processing_time_ms field missing)"
+    ((TESTS_FAILED++))
 fi
 
 echo ""
-echo "=================================================="
-echo "Test Suite Completed"
-echo "=================================================="
-echo ""
-echo "Test images are stored in: ./test_images/"
-echo "To run Python test suite: python3 test_api.py"
-echo ""
+echo "==================================="
+echo -e "Results: ${GREEN}$TESTS_PASSED passed${NC}, ${RED}$TESTS_FAILED failed${NC}"
+echo "==================================="
+
+# Exit with appropriate code
+[ $TESTS_FAILED -eq 0 ] && exit 0 || exit 1

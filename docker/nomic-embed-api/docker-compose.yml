@@ -2,10 +2,12 @@ version: '3.8'
 
 services:
   nomic-embed-api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.simple
     container_name: nomic-embed-api
     ports:
-      - "8002:8000"
+      - "${PORT:-8000}:8000"
     volumes:
       - ./models:/app/models  # Model cache directory
       - ./temp:/tmp  # Temporary files
