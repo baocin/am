@@ -1,0 +1,60 @@
+# Multi-stage Dockerfile for calendar-fetcher using base images
+# Stage 1: Builder
+FROM loom/python-base:3.11-slim as builder
+
+# Switch to root for build
+USER root
+
+# Install build dependencies if needed
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment
+WORKDIR /app
+RUN python -m venv .venv
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Copy and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy loom-common if available (for local development)
+# In production, this would be installed from a package repository
+COPY --from=loom-common-builder /app/loom-common /tmp/loom-common
+RUN pip install --no-cache-dir /tmp/loom-common || true
+
+# Stage 2: Runtime
+FROM loom/kafka-python-base:3.11-slim
+
+# Metadata
+ARG BUILD_DATE=unknown
+ARG GIT_COMMIT=unknown
+ARG BUILD_VERSION=latest
+
+LABEL org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${GIT_COMMIT}" \
+      org.opencontainers.image.version="${BUILD_VERSION}" \
+      org.opencontainers.image.title="loom-calendar-fetcher" \
+      org.opencontainers.image.description="Calendar event fetcher for Loom v2"
+
+# Copy virtual environment from builder
+COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
+
+# Set Python to use the virtual environment
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Copy application code
+COPY --chown=appuser:appuser app/ ./app/
+
+# Create logs directory
+USER root
+RUN mkdir -p /app/logs && chown appuser:appuser /app/logs
+USER appuser
+
+# Environment variables
+ENV PYTHONPATH=/app
+ENV LOOM_SERVICE_NAME=calendar-fetcher
+
+# Run the application
+CMD ["python", "app/main.py"]

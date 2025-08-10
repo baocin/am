@@ -1,0 +1,6 @@
+requests==2.32.2
+python-dotenv==1.0.0
+schedule==1.2.2
+beautifulsoup4==4.12.2
+playwright==1.45.0
+asyncpg==0.29.0

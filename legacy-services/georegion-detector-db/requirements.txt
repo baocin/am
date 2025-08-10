@@ -1,0 +1,2 @@
+asyncpg==0.29.0
+structlog==24.1.0
