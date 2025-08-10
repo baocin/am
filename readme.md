@@ -1,8 +1,8 @@
 # AM: Allied Mastercomputer
 
-[![Build Status](https://img.shields.io/badge/build-passing-green)](https://github.com/baocin/AM/actions) [![Python](https://img.shields.io/badge/python-3.11+-blue)](https://python.org) [![Docker](https://img.shields.io/badge/docker-supported-blue)](https://docker.com) [![Kubernetes](https://img.shields.io/badge/kubernetes-optional-blue)](https://kubernetes.io) [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-orange)](https://www.gnu.org/licenses/agpl-3.0.en.html)
+[![Build Status](https://img.shields.io/badge/build-passing-green)](https://github.com/baocin/AM/actions) [![Go](https://img.shields.io/badge/go-1.21+-blue)](https://go.dev) [![Python](https://img.shields.io/badge/python-3.11+-blue)](https://python.org) [![Docker](https://img.shields.io/badge/docker-supported-blue)](https://docker.com) [![Kubernetes](https://img.shields.io/badge/kubernetes-optional-blue)](https://kubernetes.io) [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-orange)](https://www.gnu.org/licenses/agpl-3.0.en.html)
 
-**AM** is your ultimate personal digital custodian—a privacy-first, local-first system that aggregates, processes, and analyzes *all* available timeseries data from your devices and digital life. Evolving from prototypes like [Pino](https://github.com/baocin/pino), [Loom](https://github.com/baocin/loom), [Loom v2](https://github.com/baocin/loomv2), and [Loom v3](https://github.com/baocin/loomv3), AM unifies everything into a cohesive platform. It collects raw data streams (e.g., GPS, audio, sensors), applies AI/ML processing (e.g., STT, OCR, embeddings), extracts meaningful abstractions (e.g., habits, memories), and deploys an intelligent agent for proactive insights and notifications.
+**AM** is your ultimate personal digital custodian—a privacy-first, local-first system that aggregates, processes, and analyzes *all* available timeseries data from your devices and digital life. Evolving from prototypes like [Pino](https://github.com/baocin/pino), [Loom](https://github.com/baocin/loom), [Loom v2](https://github.com/baocin/loomv2), and [Loom v3](https://github.com/baocin/loomv3), AM unifies everything into a cohesive platform. It collects raw data streams via gRPC (e.g., GPS, audio, sensors), routes through NATS JetStream for reliable messaging, applies AI/ML processing (e.g., STT, OCR, embeddings), stores in TimescaleDB with pgvector for time-series and vector operations, and deploys an intelligent agent for proactive insights and notifications.
 
 Think of AM as a "second brain" that:
 - Records your life's context passively.
@@ -45,7 +45,7 @@ Real-world applications:
 - **Custom**: Any timeseries via generic endpoints (e.g., EEG from wearables).
 
 ### Processing Pipelines
-- **Real-Time Ingestion**: WebSocket/REST/gRPC for streaming/batch; validation with JSON schemas.
+- **Real-Time Ingestion**: gRPC for streaming with protocol buffers; NATS JetStream for reliable message queuing; OpenTelemetry for distributed tracing.
 - **Audio/Video**: STT (Whisper/Phi-4), voice activity detection, emotion recognition, noise filtering.
 - **Images**: OCR (MoonDream2), face detection/recognition, object detection (YOLO), gaze/pose estimation (MediaPipe), license plate recognition.
 - **Sensors**: Motion classification (walking/driving), geocoding (Nominatim), speed estimation.
@@ -58,7 +58,7 @@ Real-world applications:
 - **Notifications**: Gotify/WebSocket for nudges (e.g., "Break time based on screen usage").
 - **DSPy/LLM Agent**: Analyzes data for patterns/habits/memories; proactive (e.g., "Remind of past event relevant to current GPS").
 - **Analytics**: Causal inference (e.g., "App usage caused fatigue"), multi-modal fusion (audio + sensors = activity detection).
-- **Storage**: TimescaleDB for timeseries (hypertables, compression); local files for media; DuckDB for edge queries.
+- **Storage**: TimescaleDB with pgvector for timeseries (hypertables, compression) and vector embeddings; local files for media; DuckDB for edge queries.
 
 ### Monitoring & Extensibility
 - Prometheus/Grafana for metrics/logs.
@@ -72,20 +72,24 @@ AM uses a microservices design for modularity, deployable as Docker Compose (dev
 ```mermaid
 graph TD
     subgraph "Data Sources"
-        Mobile[Mobile/Watch Apps]
+        Mobile[Mobile/Watch Apps<br/>Kotlin/Flutter]
         Laptop[Laptop/Desktop]
         External[APIs: Email/Calendar/Social]
     end
 
     subgraph "Ingestion Layer"
-        API[FastAPI/gRPC/WebSocket]
-        Validators[Schema Validation]
+        GRPC[gRPC Server<br/>Go API]
+        OTel[OpenTelemetry<br/>Tracing]
     end
 
-    subgraph "Storage & Queue"
-        DB[(TimescaleDB: Timeseries/Metadata)]
+    subgraph "Message Queue"
+        NATS[NATS JetStream<br/>Reliable Messaging]
+        Router[Data Router<br/>Go Service]
+    end
+
+    subgraph "Storage"
+        TSDBec[(TimescaleDB<br/>+ pgvector)]
         Files[Local Files: Media]
-        Queue[NATS JetStream/Kafka: Events]
     end
 
     subgraph "Processing Services"
@@ -108,21 +112,26 @@ graph TD
         Desktop[Rust/Tauri Desktop]
     end
 
-    Mobile --> API
-    Laptop --> API
-    External --> API
-    API --> Validators --> Queue --> DB
-    API --> Files
-    Queue --> Audio --> Embed --> LLM
-    Queue --> Vision --> Embed --> LLM
-    Queue --> Sensors --> Analytics --> LLM
-    Queue --> Anomaly --> Analytics --> LLM
+    Mobile -->|gRPC| GRPC
+    Laptop -->|gRPC| GRPC
+    External -->|gRPC| GRPC
+    GRPC --> OTel --> NATS
+    NATS --> Router
+    Router --> Audio --> TSDBec
+    Router --> Vision --> TSDBec
+    Router --> Sensors --> TSDBec
+    Router --> Anomaly --> TSDBec
+    Router --> Embed --> TSDBec
+    TSDBec --> Analytics --> LLM
     LLM --> Notify --> App
     Notify --> Watch
     Notify --> Desktop
 ```
 
-- **Event-Driven**: NATS/Kafka for async processing.
+- **Protocol**: gRPC with protocol buffers for efficient data serialization (3-10x faster than JSON).
+- **Message Queue**: NATS JetStream for reliable, ordered message delivery with at-least-once semantics.
+- **Observability**: OpenTelemetry for distributed tracing across all services.
+- **Storage**: TimescaleDB with pgvector extension for time-series data and ML embeddings.
 - **Scalability**: Horizontal scaling per service; user isolation via namespaces.
 - **Edge Support**: Subset runs on-device (e.g., DuckDB + lightweight ML).
 
@@ -146,22 +155,31 @@ AM's ambition introduces challenges. Here's a breakdown with solutions:
 ## Setup & Installation
 
 ### Prerequisites
-- Python 3.11+, Docker, k3s (optional), NVIDIA GPU (recommended for ML).
-- Libraries: FastAPI, River, Prophet, HuggingFace (Whisper, MoonDream2, etc.).
+- Go 1.21+, Python 3.11+, Docker, k3s (optional), NVIDIA GPU (recommended for ML).
+- Languages: Go (API services, data router), Python (ML processors).
+- Database: TimescaleDB with pgvector extension.
+- Message Queue: NATS JetStream.
+- Libraries: gRPC, OpenTelemetry, River, Prophet, HuggingFace (Whisper, MoonDream2, etc.).
 
 ### Quick Start (Docker Compose)
 ```bash
 git clone https://github.com/baocin/AM
 cd AM
 cp .env.example .env  # Edit secrets
-make setup  # Install deps, pre-commit
-make dev-up  # Start services (ingestion, DB, processors)
-make topics-create  # Kafka/NATS topics
+make setup  # Install deps, generate proto files
+make dev-up  # Start services (gRPC API, NATS, TimescaleDB, processors)
+make migrate  # Run database migrations
 make test  # Run tests
 ```
 
-- Access: API at http://localhost:8000/docs; DB at postgres://loom:loom@localhost:5432/loom.
-- Mobile App: Flutter setup in `/android-app` or `/flutter-app`.
+- Access: 
+  - gRPC API at localhost:50051
+  - NATS monitoring at http://localhost:8222
+  - TimescaleDB at postgres://loom:loom@localhost:5432/loom
+  - Metrics at http://localhost:9090/metrics
+- Mobile Apps: 
+  - Android Wearable in `/clients/LoomWearable`
+  - Flutter Mobile in `/clients/mobile`
 - Models: Download Whisper/Phi-4 manually to `/models`.
 
 ### Production (k3s)
@@ -189,10 +207,11 @@ AM is dual-licensed:
 
 ## Roadmap
 
-- **Sprint 1**: Unified ingestion + basic storage.
-- **Sprint 2**: Core ML pipelines (STT/OCR/anomalies).
-- **Sprint 3**: Passive photo + embeddings/search.
-- **Sprint 4**: DSPy agent + notifications.
+- **Sprint 1**: gRPC protocol definitions + TimescaleDB setup with pgvector.
+- **Sprint 2**: Go API service with NATS JetStream + OpenTelemetry.
+- **Sprint 3**: Data router for message processing + client gRPC migration.
+- **Sprint 4**: Core ML pipelines (STT/OCR/anomalies) integration.
+- **Sprint 5**: DSPy agent + notifications.
 - **Long-Term**: Multi-user, digital twin features.
 
 Contact: loom@steele.red or issues. Let's build the future of personal AI!
