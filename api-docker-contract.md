@@ -525,6 +525,9 @@ async def metrics():
 Every service MUST include a `test.sh` script in the root directory that tests all major endpoints using curl commands. This script should be executable and provide clear pass/fail feedback.
 
 #### test.sh Template
+
+**IMPORTANT**: All test scripts MUST print the actual curl command output for visibility and debugging purposes. Each test should show both the command being executed and its response.
+
 ```bash
 #!/bin/bash
 
@@ -549,24 +552,23 @@ run_test() {
     local expected_status="$3"
     local expected_contains="$4"
     
-    echo -n "Testing $test_name... "
+    echo "Testing $test_name..."
+    echo "Command: $curl_cmd"
     
-    # Execute curl command
-    if [ "$VERBOSE" == "true" ]; then
-        response=$(eval "$curl_cmd -w '\n%{http_code}'" 2>&1)
-        status_code=$(echo "$response" | tail -n 1)
-        body=$(echo "$response" | head -n -1)
-    else
-        response=$(eval "$curl_cmd -w '\n%{http_code}' -s" 2>&1)
-        status_code=$(echo "$response" | tail -n 1)
-        body=$(echo "$response" | head -n -1)
-    fi
+    # Execute curl command and capture output
+    response=$(eval "$curl_cmd -w '\n%{http_code}'" 2>&1)
+    status_code=$(echo "$response" | tail -n 1)
+    body=$(echo "$response" | head -n -1)
+    
+    # Always print the response for visibility
+    echo "Response: $body"
+    echo -n "Result: "
     
     # Check status code
     if [ "$status_code" != "$expected_status" ]; then
         echo -e "${RED}FAILED${NC} (Status: $status_code, Expected: $expected_status)"
-        [ "$VERBOSE" == "true" ] && echo "Response: $body"
         ((TESTS_FAILED++))
+        echo "---"
         return 1
     fi
     
@@ -574,14 +576,15 @@ run_test() {
     if [ -n "$expected_contains" ]; then
         if [[ ! "$body" == *"$expected_contains"* ]]; then
             echo -e "${RED}FAILED${NC} (Response missing: $expected_contains)"
-            [ "$VERBOSE" == "true" ] && echo "Response: $body"
             ((TESTS_FAILED++))
+            echo "---"
             return 1
         fi
     fi
     
     echo -e "${GREEN}PASSED${NC}"
     ((TESTS_PASSED++))
+    echo "---"
     return 0
 }
 
@@ -922,10 +925,11 @@ if torch.cuda.is_available():
 
 ## Version History
 
+- **v1.1.1** - Updated test.sh template to require printing curl command output for better visibility and debugging
 - **v1.1.0** - Added test.sh requirements, test/ directory structure, and NVIDIA/CUDA guidelines
 - **v1.0.0** - Initial specification based on RapidOCR implementation
 - Created: 2025-01-10
-- Last Updated: 2025-01-10
+- Last Updated: 2025-01-11
 
 ---
 

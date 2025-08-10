@@ -1,236 +1,210 @@
 #!/bin/bash
 
 # RapidOCR API Test Script
-# Collection of curl commands to test all API endpoints
+# Follows api-docker-contract.md standards
 
-BASE_URL="http://localhost:8000"
-TEST_DIR="test_images"
-
-echo "========================================="
-echo "RapidOCR API Test Suite"
-echo "========================================="
-echo ""
-
-# Color codes for output
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
+# Colors for output
 RED='\033[0;31m'
-YELLOW='\033[0;33m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Function to print test headers
-print_test() {
-    echo -e "${BLUE}Testing: $1${NC}"
-    echo "----------------------------------------"
+# Configuration
+BASE_URL="${BASE_URL:-http://localhost:8000}"
+VERBOSE="${VERBOSE:-false}"
+TEST_DIR="test_images"
+
+# Test counters
+TESTS_PASSED=0
+TESTS_FAILED=0
+
+# Helper function for running tests
+run_test() {
+    local test_name="$1"
+    local curl_cmd="$2"
+    local expected_status="$3"
+    local expected_contains="$4"
+    
+    echo "Testing $test_name..."
+    echo "Command: $curl_cmd"
+    
+    # Execute curl command and capture output
+    response=$(eval "$curl_cmd -w '\n%{http_code}'" 2>&1)
+    status_code=$(echo "$response" | tail -n 1)
+    body=$(echo "$response" | head -n -1)
+    
+    # Always print the response for visibility
+    echo "Response: $body"
+    echo -n "Result: "
+    
+    # Check status code
+    if [ "$status_code" != "$expected_status" ]; then
+        echo -e "${RED}FAILED${NC} (Status: $status_code, Expected: $expected_status)"
+        ((TESTS_FAILED++))
+        echo "---"
+        return 1
+    fi
+    
+    # Check response contains expected string
+    if [ -n "$expected_contains" ]; then
+        if [[ ! "$body" == *"$expected_contains"* ]]; then
+            echo -e "${RED}FAILED${NC} (Response missing: $expected_contains)"
+            ((TESTS_FAILED++))
+            echo "---"
+            return 1
+        fi
+    fi
+    
+    echo -e "${GREEN}PASSED${NC}"
+    ((TESTS_PASSED++))
+    echo "---"
+    return 0
 }
 
-# Check if test_images directory exists
+echo "==================================="
+echo "RapidOCR API Integration Tests"
+echo "Base URL: $BASE_URL"
+echo "==================================="
+
+# Check if test directory exists
 if [ ! -d "$TEST_DIR" ]; then
     echo -e "${YELLOW}Warning: $TEST_DIR directory not found!${NC}"
-    echo "Run ./test_images_setup.sh to create test images, or create the directory manually."
-    echo ""
+    echo "Creating test directory with sample files..."
+    mkdir -p "$TEST_DIR"
 fi
 
-# 1. Health & Info Endpoints
-print_test "API Root Info"
-curl -X GET "$BASE_URL/"
-echo -e "\n"
+# Test 1: Health Check
+run_test "Health Check" \
+    "curl -X GET $BASE_URL/health" \
+    "200" \
+    '"status":"healthy"'
 
-print_test "Health Check"
-curl -X GET "$BASE_URL/health"
-echo -e "\n"
+# Test 2: Alternative Health Check (Kubernetes-style)
+run_test "Health Check (K8s)" \
+    "curl -X GET $BASE_URL/healthz" \
+    "200" \
+    '"status":"healthy"'
 
-# 2. OCR from File Upload
+# Test 3: Root Endpoint
+run_test "Root Info" \
+    "curl -X GET $BASE_URL/" \
+    "200" \
+    '"service":"RapidOCR Raw API"'
+
+# Test 4: OCR from File Upload
 if [ -f "$TEST_DIR/1.png" ]; then
-    print_test "OCR from File - 1.png (without visualization)"
-    curl -X POST "$BASE_URL/ocr/file" \
-      -F "file=@$TEST_DIR/1.png" \
-      -F "visualize=false"
-    echo -e "\n"
+    run_test "OCR from File Upload" \
+        "curl -X POST -F 'file=@$TEST_DIR/1.png' -F 'visualize=false' $BASE_URL/ocr/file" \
+        "200" \
+        '"success":true'
 else
-    echo -e "${YELLOW}Skipping: $TEST_DIR/1.png not found${NC}\n"
+    echo -e "${YELLOW}SKIPPED${NC} OCR from File Upload (test_images/1.png not found)"
+    echo "---"
 fi
 
-if [ -f "$TEST_DIR/2.png" ]; then
-    print_test "OCR from File - 2.png (with visualization)"
-    curl -X POST "$BASE_URL/ocr/file" \
-      -F "file=@$TEST_DIR/2.png" \
-      -F "visualize=true"
-    echo -e "\n"
-else
-    echo -e "${YELLOW}Skipping: $TEST_DIR/2.png not found${NC}\n"
-fi
-
-if [ -f "$TEST_DIR/3.png" ]; then
-    print_test "OCR from File - 3.png"
-    curl -X POST "$BASE_URL/ocr/file" \
-      -F "file=@$TEST_DIR/3.png" \
-      -F "visualize=false"
-    echo -e "\n"
-else
-    echo -e "${YELLOW}Skipping: $TEST_DIR/3.png not found${NC}\n"
-fi
-
+# Test 5: OCR with Visualization
 if [ -f "$TEST_DIR/test.jpg" ]; then
-    print_test "OCR from File - test.jpg (JPEG format)"
-    curl -X POST "$BASE_URL/ocr/file" \
-      -F "file=@$TEST_DIR/test.jpg" \
-      -F "visualize=false"
-    echo -e "\n"
+    run_test "OCR with Visualization" \
+        "curl -X POST -F 'file=@$TEST_DIR/test.jpg' -F 'visualize=true' $BASE_URL/ocr/file" \
+        "200" \
+        '"visualization_base64":'
 else
-    echo -e "${YELLOW}Skipping: $TEST_DIR/test.jpg not found${NC}\n"
+    echo -e "${YELLOW}SKIPPED${NC} OCR with Visualization (test_images/test.jpg not found)"
+    echo "---"
 fi
 
-if [ -f "$TEST_DIR/handwriting.png" ]; then
-    print_test "OCR from File - handwriting.png"
-    curl -X POST "$BASE_URL/ocr/file" \
-      -F "file=@$TEST_DIR/handwriting.png" \
-      -F "visualize=false"
-    echo -e "\n"
-else
-    echo -e "${YELLOW}Skipping: $TEST_DIR/handwriting.png not found${NC}\n"
-fi
-
-# 3. OCR from Base64
-print_test "OCR from Base64 (small test image)"
-curl -X POST "$BASE_URL/ocr/base64" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "image_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
-    "visualize": false
-  }'
-echo -e "\n"
-
-# If you have a base64 encoded image file
+# Test 6: OCR from Base64
 if [ -f "$TEST_DIR/1_base64.txt" ]; then
-    print_test "OCR from Base64 - 1.png encoded"
-    BASE64_CONTENT=$(cat $TEST_DIR/1_base64.txt)
-    curl -X POST "$BASE_URL/ocr/base64" \
-      -H "Content-Type: application/json" \
-      -d "{
-        \"image_base64\": \"$BASE64_CONTENT\",
-        \"visualize\": false
-      }"
-    echo -e "\n"
+    BASE64_DATA=$(cat "$TEST_DIR/1_base64.txt")
+    run_test "OCR from Base64" \
+        "curl -X POST -H 'Content-Type: application/json' -d '{\"image_base64\":\"'$BASE64_DATA'\",\"visualize\":false}' $BASE_URL/ocr/base64" \
+        "200" \
+        '"success":true'
 else
-    echo -e "${YELLOW}Skipping: $TEST_DIR/1_base64.txt not found${NC}\n"
+    # Generate base64 from an image if available
+    if [ -f "$TEST_DIR/1.png" ]; then
+        BASE64_DATA=$(base64 -w 0 "$TEST_DIR/1.png" 2>/dev/null || base64 "$TEST_DIR/1.png")
+        run_test "OCR from Base64" \
+            "curl -X POST -H 'Content-Type: application/json' -d '{\"image_base64\":\"'$BASE64_DATA'\",\"visualize\":false}' $BASE_URL/ocr/base64" \
+            "200" \
+            '"success":true'
+    else
+        echo -e "${YELLOW}SKIPPED${NC} OCR from Base64 (no test images found)"
+        echo "---"
+    fi
 fi
 
-# 4. OCR from URL
-print_test "OCR from URL - RapidOCR test image"
-curl -X POST "$BASE_URL/ocr/url" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "image_url": "https://github.com/RapidAI/RapidOCR/blob/main/python/tests/test_files/ch_en_num.jpg?raw=true",
-    "visualize": false
-  }'
-echo -e "\n"
+# Test 7: OCR from URL
+run_test "OCR from URL" \
+    "curl -X POST -H 'Content-Type: application/json' -d '{\"image_url\":\"https://raw.githubusercontent.com/RapidAI/RapidOCR/main/python/tests/test_files/ch_en_num.jpg\",\"visualize\":false}' $BASE_URL/ocr/url" \
+    "200" \
+    '"success":true'
 
-print_test "OCR from URL - Placeholder image with text"
-curl -X POST "$BASE_URL/ocr/url" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "image_url": "https://via.placeholder.com/400x200/000000/FFFFFF?text=Test+OCR+Text",
-    "visualize": false
-  }'
-echo -e "\n"
+# Test 8: OCR Batch Processing
+if [ -f "$TEST_DIR/1.png" ] && [ -f "$TEST_DIR/2.png" ]; then
+    run_test "OCR Batch Processing" \
+        "curl -X POST -F 'files=@$TEST_DIR/1.png' -F 'files=@$TEST_DIR/2.png' -F 'visualize=false' $BASE_URL/ocr/batch" \
+        "200" \
+        '"results":'
+else
+    echo -e "${YELLOW}SKIPPED${NC} OCR Batch Processing (test images not found)"
+    echo "---"
+fi
 
-# 5. Error Handling Tests
-print_test "Error Test - Invalid Base64"
-curl -X POST "$BASE_URL/ocr/base64" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "image_base64": "invalid_base64_string",
-    "visualize": false
-  }'
-echo -e "\n"
+# Test 9: Invalid Request - Empty JSON
+run_test "Invalid Request Handling" \
+    "curl -X POST -H 'Content-Type: application/json' -d '{}' $BASE_URL/ocr/base64" \
+    "422" \
+    ""
 
-print_test "Error Test - Missing Required Field"
-curl -X POST "$BASE_URL/ocr/base64" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "visualize": false
-  }'
-echo -e "\n"
+# Test 10: Invalid Base64
+run_test "Invalid Base64 Image" \
+    "curl -X POST -H 'Content-Type: application/json' -d '{\"image_base64\":\"invalid_base64_data\",\"visualize\":false}' $BASE_URL/ocr/base64" \
+    "200" \
+    '"success":false'
 
-print_test "Error Test - Invalid URL"
-curl -X POST "$BASE_URL/ocr/url" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "image_url": "https://invalid-url-that-does-not-exist.com/image.jpg",
-    "visualize": false
-  }'
-echo -e "\n"
+# Test 11: Invalid URL
+run_test "Invalid URL" \
+    "curl -X POST -H 'Content-Type: application/json' -d '{\"image_url\":\"http://invalid.url/image.jpg\",\"visualize\":false}' $BASE_URL/ocr/url" \
+    "200" \
+    '"success":false'
 
-# 6. Performance Test with timing
+# Test 12: OCR with Language Specification
 if [ -f "$TEST_DIR/1.png" ]; then
-    print_test "Performance Test - Measure response time"
-    time curl -X POST "$BASE_URL/ocr/file" \
-      -F "file=@$TEST_DIR/1.png" \
-      -F "visualize=false" \
-      -o /dev/null -s -w "\nStatus: %{http_code}\nTime: %{time_total}s\n"
-    echo -e "\n"
+    run_test "OCR with Language" \
+        "curl -X POST -F 'file=@$TEST_DIR/1.png' -F 'language=eng' -F 'visualize=false' $BASE_URL/ocr/file" \
+        "200" \
+        '"success":true'
 else
-    echo -e "${YELLOW}Skipping performance test: $TEST_DIR/1.png not found${NC}\n"
+    echo -e "${YELLOW}SKIPPED${NC} OCR with Language (test images not found)"
+    echo "---"
 fi
 
-# 7. Concurrent requests test
+# Test 13: Processing Time Check
 if [ -f "$TEST_DIR/1.png" ]; then
-    print_test "Concurrent Requests Test (3 parallel requests)"
-    for i in {1..3}; do
-      curl -X POST "$BASE_URL/ocr/file" \
-        -F "file=@$TEST_DIR/1.png" \
-        -F "visualize=false" \
-        -o /dev/null -s -w "Request $i - Status: %{http_code}, Time: %{time_total}s\n" &
-    done
-    wait
-    echo -e "\n"
+    run_test "Processing Time in Response" \
+        "curl -X POST -F 'file=@$TEST_DIR/1.png' -F 'visualize=false' $BASE_URL/ocr/file" \
+        "200" \
+        '"processing_time_ms":'
 else
-    echo -e "${YELLOW}Skipping concurrent test: $TEST_DIR/1.png not found${NC}\n"
+    echo -e "${YELLOW}SKIPPED${NC} Processing Time Check (test images not found)"
+    echo "---"
 fi
 
-# 8. Pretty printed JSON response
+# Test 14: OCR Result Structure
 if [ -f "$TEST_DIR/1.png" ]; then
-    print_test "OCR with Pretty JSON Output"
-    curl -X POST "$BASE_URL/ocr/file" \
-      -F "file=@$TEST_DIR/1.png" \
-      -F "visualize=false" \
-      -s | python3 -m json.tool 2>/dev/null || echo "Install python3 for pretty JSON output"
-    echo -e "\n"
+    run_test "OCR Result Structure" \
+        "curl -X POST -F 'file=@$TEST_DIR/1.png' -F 'visualize=false' $BASE_URL/ocr/file" \
+        "200" \
+        '"boxes":'
 else
-    echo -e "${YELLOW}Skipping pretty JSON test: $TEST_DIR/1.png not found${NC}\n"
+    echo -e "${YELLOW}SKIPPED${NC} OCR Result Structure (test images not found)"
+    echo "---"
 fi
 
-# 9. Test non-image file error handling
-if [ -f "$TEST_DIR/document.pdf" ]; then
-    print_test "Error Test - Non-image file (PDF)"
-    curl -X POST "$BASE_URL/ocr/file" \
-      -F "file=@$TEST_DIR/document.pdf" \
-      -F "visualize=false"
-    echo -e "\n"
-fi
+echo "==================================="
+echo -e "Results: ${GREEN}$TESTS_PASSED passed${NC}, ${RED}$TESTS_FAILED failed${NC}"
+echo "==================================="
 
-# Summary
-echo "========================================="
-echo -e "${GREEN}Test Suite Complete${NC}"
-echo "========================================="
-echo ""
-echo "Usage Notes:"
-echo "1. Make sure the RapidOCR service is running: docker-compose up"
-echo "2. Create test images: ./test_images_setup.sh"
-echo "3. All test images should be in the $TEST_DIR/ directory"
-echo "4. For base64 tests: base64 $TEST_DIR/1.png > $TEST_DIR/1_base64.txt"
-echo "5. Check docker logs for server-side errors: docker logs rapidocr-raw-api"
-echo ""
-echo "Quick Tests:"
-echo "  ./test.sh                    # Run all tests"
-echo "  curl $BASE_URL/health        # Quick health check"
-echo "  curl $BASE_URL/docs          # Open API documentation"
-echo ""
-echo "Test Images Expected:"
-echo "  $TEST_DIR/1.png             # Test image 1"
-echo "  $TEST_DIR/2.png             # Test image 2"
-echo "  $TEST_DIR/3.png             # Test image 3"
-echo "  $TEST_DIR/test.jpg          # JPEG format test"
-echo "  $TEST_DIR/handwriting.png   # Handwriting test"
-echo "  $TEST_DIR/1_base64.txt      # Base64 encoded 1.png"
+# Exit with appropriate code
+[ $TESTS_FAILED -eq 0 ] && exit 0 || exit 1
