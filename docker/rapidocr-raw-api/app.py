@@ -296,7 +296,10 @@ async def ocr_from_base64(request: OCRRequest):
     """
     try:
         # Decode base64 image
-        image_data = base64.b64decode(request.image_base64)
+        try:
+            image_data = base64.b64decode(request.image_base64)
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=str(e))
         
         # Process with RapidOCR
         result = engine(image_data)
@@ -356,6 +359,8 @@ async def ocr_from_base64(request: OCRRequest):
         
         return response
         
+    except HTTPException:
+        raise
     except Exception as e:
         return OCRResponse(
             success=False,
@@ -390,14 +395,63 @@ async def ocr_from_url(request: OCRURLRequest):
         # Extract text and boxes
         texts = []
         boxes = []
-        for detection in result:
-            box, text, score = detection
-            texts.append(text)
-            boxes.append({
-                "box": box.tolist() if hasattr(box, 'tolist') else box,
-                "text": text,
-                "score": float(score)
-            })
+        
+        # Debug logging
+        logger.info(f"URL Result type: {type(result)}")
+        if isinstance(result, tuple):
+            logger.info(f"URL Result tuple length: {len(result)}")
+        
+        # Handle different result formats from RapidOCR
+        try:
+            if isinstance(result, tuple):
+                if len(result) == 2:
+                    # Format: (result_list, elapsed_time) 
+                    actual_results, elapsed = result
+                    if actual_results is not None:
+                        for item in actual_results:
+                            if len(item) == 3:
+                                box, text, score = item
+                                texts.append(text)
+                                boxes.append({
+                                    "box": box.tolist() if hasattr(box, 'tolist') else box,
+                                    "text": text,
+                                    "score": float(score)
+                                })
+                elif len(result) == 3:
+                    # Format: (boxes_list, texts_list, scores_list)
+                    boxes_list, texts_list, scores_list = result
+                    if boxes_list is not None and texts_list is not None:
+                        for box, text, score in zip(boxes_list, texts_list, scores_list):
+                            texts.append(text)
+                            boxes.append({
+                                "box": box.tolist() if hasattr(box, 'tolist') else box,
+                                "text": text,
+                                "score": float(score)
+                            })
+            elif isinstance(result, list):
+                # Format: list of [box, text, score]
+                for item in result:
+                    if len(item) == 3:
+                        box, text, score = item
+                        texts.append(text)
+                        boxes.append({
+                            "box": box.tolist() if hasattr(box, 'tolist') else box,
+                            "text": text,
+                            "score": float(score)
+                        })
+            else:
+                logger.error(f"Unexpected URL result format: {type(result)}")
+                return OCRResponse(
+                    success=False,
+                    error=f"Unexpected OCR result format: {type(result)}"
+                )
+        except Exception as e:
+            logger.error(f"Error processing URL OCR result: {str(e)}")
+            logger.error(f"URL Result structure: {result}")
+            return OCRResponse(
+                success=False,
+                error=f"Error processing OCR result: {str(e)}"
+            )
         
         response_data = OCRResponse(
             success=True,
@@ -414,10 +468,7 @@ async def ocr_from_url(request: OCRURLRequest):
         return response_data
         
     except requests.RequestException as e:
-        return OCRResponse(
-            success=False,
-            error=f"Failed to download image: {str(e)}"
-        )
+        raise HTTPException(status_code=422, detail=f"Failed to download image: {str(e)}")
     except Exception as e:
         return OCRResponse(
             success=False,
