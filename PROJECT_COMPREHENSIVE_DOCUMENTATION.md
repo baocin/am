@@ -1325,6 +1325,209 @@ user.{id}.computed
 
 ---
 
+## TO BE SUPPORTED: Future Data Inputs
+
+### Device Data Collection (Planned)
+
+#### Audio/Video/Image
+- **Raw microphone audio** - Continuous or VAD-triggered audio chunks
+  - Format: `{device_id, timestamp, samples: int16[], sample_rate, duration_ms, codec}`
+  
+- **Screen recordings** - Keyframes or full video capture
+  - Format: `{device_id, timestamp, frame_base64, width, height, fps, codec}`
+  
+- **Camera photos** - User-initiated and passive captures
+  - Format: `{device_id, timestamp, image_base64, width, height, exif_data}`
+  - Sources: Manual capture, motion-triggered, scheduled intervals
+  
+- **Food photos** - Meal documentation for nutrition tracking
+  - Format: `{device_id, timestamp, image_base64, meal_type, location, tags[]}`
+  - Sources: User-initiated, meal-time reminders
+
+#### Extended Sensor Data
+- **Proximity sensor** - Distance measurements
+  - Format: `{device_id, timestamp, distance_cm, near_far_state}`
+
+#### Health & Biometric Data
+- **Heart rate** - Continuous heart rate monitoring
+  - Format: `{device_id, timestamp, bpm, confidence, hrv_ms}`
+  - Sources: Watch, chest strap, fitness bands
+  
+- **Blood oxygen (SpO2)** - Oxygen saturation levels
+  - Format: `{device_id, timestamp, spo2_percent, pulse_rate, confidence}`
+  
+- **Blood pressure** - Systolic/diastolic readings
+  - Format: `{device_id, timestamp, systolic, diastolic, pulse}`
+  
+- **EEG** - Brain electrical activity
+  - Format: `{device_id, timestamp, channels[], sample_rate_hz, samples[][]}`
+  - Sources: Consumer EEG headbands (Muse, Neurosity)
+  
+- **ECG** - Heart electrical activity
+  - Format: `{device_id, timestamp, lead_data[], sample_rate_hz, duration_ms}`
+  
+- **Continuous glucose monitoring (CGM)** - Blood sugar tracking
+  - Format: `{device_id, timestamp, glucose_mg_dl, trend_arrow, rate_of_change}`
+  
+- **Sleep stages** - Sleep phase detection
+  - Format: `{device_id, timestamp, stage: enum, confidence, duration_min}`
+  
+- **Stress levels** - HRV-based stress detection
+  - Format: `{device_id, timestamp, stress_level: 1-100, hrv_ms, recovery_time}`
+
+#### System & Application Monitoring
+- **Cross-platform app usage** - Application activity tracking
+  - Windows: `{app_name, window_title, duration_s, keystrokes, clicks}`
+  - macOS: `{app_name, window_title, duration_s, focus_time}`
+  - Linux: `{process_name, window_class, cpu_percent, memory_mb}`
+  - iOS/Android: `{bundle_id, app_name, category, duration_s}`
+
+- **File system operations** - File access and modifications
+  - Format: `{device_id, timestamp, operation, file_path, size_bytes, result}`
+
+- **Hardware events** - USB devices, peripherals
+  - Format: `{device_id, timestamp, device_type, device_name, action}`
+
+#### Network & Connectivity
+- **Cellular connection** - Mobile network data
+  - Format: `{device_id, timestamp, carrier, signal_strength, network_type, cell_id}`
+  
+- **NFC interactions** - Near-field communication events
+  - Format: `{device_id, timestamp, tag_id, tag_type, payload, action}`
+
+#### Mobile App Data Collection
+- **Bluetooth scans** - Nearby device discovery
+  - Format: `{device_id, timestamp, discovered_devices[], rssi, device_type}`
+  - Frequency: Periodic scans or on-demand
+  
+- **Screen text capture** - Accessibility-based text extraction
+  - Format: `{device_id, timestamp, app_name, screen_text, ui_elements[]}`
+  - Sources: Android AccessibilityService
+  
+- **App notifications** - System notification monitoring
+  - Format: `{device_id, timestamp, app_name, title, body, category}`
+  
+- **Screen state events** - Display on/off tracking
+  - Format: `{device_id, timestamp, state: on/off, duration_s}`
+  
+- **Battery status** - Power and charging state
+  - Format: `{device_id, timestamp, level_percent, is_charging, temperature_c}`
+
+#### Digital Activity
+- **Browser history** - Web browsing activity
+  - Format: `{device_id, timestamp, url, title, duration_s, referrer}`
+  
+- **Downloads tracking** - File download monitoring
+  - Format: `{device_id, timestamp, file_name, file_size, source_url, file_type}`
+  
+- **Keylogging** - Complete keystroke capture
+  - Format: `{device_id, timestamp, app_context, keys[], timing_ms[]}`
+
+#### External Service Integration
+- **Social media activity** - Cross-platform social data
+  - Reddit: Saved posts, comments, upvotes
+  - YouTube: Watch history, liked videos, subscriptions
+  - Twitter/X: Liked tweets, bookmarks, lists
+  - GitHub: Commits, issues, stars, activity
+  
+- **Music listening** - Spotify, Apple Music, etc.
+  - Format: `{track_id, artist, album, played_at, duration_ms, context}`
+  
+- **Financial transactions** - Banking and payment data
+  - Format: `{transaction_id, amount, merchant, category, date}`
+  
+- **Weather conditions** - Local environmental data
+  - Format: `{timestamp, temp_c, humidity, pressure, conditions, wind_speed}`
+  
+- **News consumption** - Articles read/saved
+  - Format: `{url, title, source, author, published_at, categories[]}`
+
+### Processed & Derived Data (Planned)
+
+#### Media Analysis
+- **Speaker diarization** - Who spoke when in audio
+- **Music vs speech classification** - Audio content type detection
+- **Keyword spotting** - Wake word and keyword detection
+- **Text summarization** - AI-generated summaries of content
+- **Named entity recognition** - People, places, organizations
+- **Sentiment analysis** - Emotional tone of text/speech
+- **Scene understanding** - Indoor/outdoor/vehicle/activity detection
+- **Food recognition** - Meal identification and nutrition estimation
+- **Action recognition** - Detected activities in video
+
+#### Behavioral Intelligence
+- **Routine detection** - Daily/weekly patterns
+- **Anomaly detection** - Unusual events with explanations
+- **Correlation discovery** - Relationships between data streams
+- **Predictive models** - Future behavior predictions
+- **Personalized insights** - Tailored recommendations
+
+#### Knowledge Representation
+- **Entity graph** - People, places, things and their relationships
+- **Event timeline** - Temporal events with context
+- **Concept mapping** - Abstract topics and themes
+- **Episodic memories** - Significant moments and experiences
+
+#### Embeddings for Search & Similarity
+- **Text embeddings** - Semantic search across all text
+- **Image embeddings** - Visual similarity and search
+- **Audio fingerprints** - Music/speech matching
+- **Behavioral embeddings** - Pattern similarity detection
+
+### Server-to-Device Commands (Planned)
+
+Only the following commands can be initiated by the server to devices:
+
+#### On-Demand Commands
+- **Health check** - Verify client connectivity and responsiveness
+  - Format: `{target_device_id, ping_id, timeout_ms}`
+  - Response: Acknowledgment with client status and uptime
+  
+- **Capture photo** - Request camera photo capture
+  - Format: `{target_device_id, camera_id, quality, flash, metadata_tags[]}`
+  - Response: Photo data with EXIF information
+  
+- **Take screenshot** - Request screen capture
+  - Format: `{target_device_id, display_id, region, include_cursor}`
+  - Response: Screenshot image with window information
+  
+- **Send notification** - Push notification to device
+  - Format: `{target_device_id, title, body, priority, actions[], expiry}`
+  - Response: Delivery confirmation, user interaction
+
+### Cross-Device Synchronization (Client-Initiated)
+
+All other data flows are client-to-server initiated:
+
+- **Universal clipboard** - Clipboard content sharing
+  - Source: Client pushes clipboard changes
+  - Distribution: Server broadcasts to authorized devices
+  
+- **File synchronization** - Selective file sync
+  - Source: Client monitors and uploads changes
+  - Distribution: Other clients pull updates
+  
+- **State synchronization** - App state and preferences
+  - Source: Client pushes state changes
+  - Distribution: Other clients subscribe to updates
+
+### Data Storage & Retention (Planned)
+
+#### Retention Policies
+- **7 days**: Raw audio/video streams, high-frequency sensor data
+- **30 days**: Location data, app usage, system events
+- **90 days**: Processed analyses, behavioral patterns
+- **1 year**: Health metrics, financial data, important documents
+- **Indefinite**: Knowledge graph, memories, user-marked important data
+
+#### Performance Optimizations
+- **Time-series optimization**: Automatic compression of historical data
+- **Pre-computed aggregates**: Hourly, daily, weekly summaries
+- **Parallel processing**: Multi-worker ingestion pipeline
+- **Smart indexing**: Optimized for time-range and similarity queries
+
+---
+
 ## Anomaly Detection System
 
 ### Four-Tier Architecture
