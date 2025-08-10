@@ -1,0 +1,22 @@
+services:
+  moondream-selfhosted:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: moondream-selfhosted
+    ports:
+      - "8001:8001"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - COMPOSE_BAKE=true
+      # No API key needed - fully self-hosted!
+    volumes:
+      - ./temp:/app/temp
+      - ./models:/app/models  # Persist downloaded models
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 4G

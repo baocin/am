@@ -1,0 +1,27 @@
+name: moondream_vision
+description: A Flutter client for Moondream API
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # Core packages
+  cupertino_icons: ^1.0.6
+  http: ^1.1.0
+  image_picker: ^1.0.4
+  camera: ^0.10.5
+  shared_preferences: ^2.2.2
+  permission_handler: ^11.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
