@@ -18,6 +18,7 @@ import base64
 import time
 from datetime import datetime
 from uuid import uuid4
+import sherpa_onnx
 
 # Service metadata
 SERVICE_NAME = "Voice API"
@@ -576,13 +577,17 @@ async def process_audio_file(
         
         # Create stream and process
         stream = asr_engine.create_stream()
-        asr_engine.accept_waveform(16000, audio_array, stream)
         
-        # Get transcription
-        text = ""
-        while asr_engine.is_ready(stream):
-            result = asr_engine.get(stream)
-            text += result.text + " "
+        # Handle online vs offline recognizer differently
+        if isinstance(asr_engine, sherpa_onnx.OnlineRecognizer):
+            stream.accept_waveform(16000, audio_array)
+            while asr_engine.is_ready(stream):
+                asr_engine.decode_stream(stream)
+            text = asr_engine.get_result(stream).text
+        else:  # OfflineRecognizer
+            stream.accept_waveform(16000, audio_array)
+            asr_engine.decode_stream(stream)
+            text = stream.result.text
         
         # Speaker identification if requested
         speaker = None
@@ -641,13 +646,17 @@ async def process_audio_base64(request: AudioProcessRequest):
         
         # Create stream and process
         stream = asr_engine.create_stream()
-        asr_engine.accept_waveform(16000, audio_array, stream)
         
-        # Get transcription
-        text = ""
-        while asr_engine.is_ready(stream):
-            result = asr_engine.get(stream)
-            text += result.text + " "
+        # Handle online vs offline recognizer differently
+        if isinstance(asr_engine, sherpa_onnx.OnlineRecognizer):
+            stream.accept_waveform(16000, audio_array)
+            while asr_engine.is_ready(stream):
+                asr_engine.decode_stream(stream)
+            text = asr_engine.get_result(stream).text
+        else:  # OfflineRecognizer
+            stream.accept_waveform(16000, audio_array)
+            asr_engine.decode_stream(stream)
+            text = stream.result.text
         
         # Speaker identification if requested
         speaker = None

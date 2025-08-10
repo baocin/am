@@ -275,6 +275,7 @@ def create_parakeet_offline(samplerate: int, args) -> sherpa_onnx.OfflineRecogni
         provider=args.asr_provider,
         num_threads=args.threads,
         sample_rate=samplerate,
+        feature_dim=128,  # Parakeet expects 128 mel bins
         debug=0,
         model_type="nemo_transducer",  # Critical parameter for NEMO models
     )

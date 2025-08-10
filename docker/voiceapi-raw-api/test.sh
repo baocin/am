@@ -27,13 +27,22 @@ run_test() {
     echo "Testing $test_name..."
     echo "Command: $curl_cmd"
     
-    # Execute curl command and capture output
+    # Execute curl command and capture output (add -s if not present to suppress progress)
+    if [[ ! "$curl_cmd" == *" -s"* ]]; then
+        curl_cmd=$(echo "$curl_cmd" | sed 's/curl /curl -s /')
+    fi
     response=$(eval "$curl_cmd -w '\n%{http_code}'" 2>&1)
     status_code=$(echo "$response" | tail -n 1)
     body=$(echo "$response" | head -n -1)
     
-    # Always print the response for visibility
-    echo "Response: $body"
+    # Truncate response if it's too long (10KB limit)
+    body_length=${#body}
+    if [ $body_length -gt 10240 ]; then
+        truncated_body=$(echo "$body" | head -c 10240)
+        echo "Response (truncated to 10KB from ${body_length} bytes): $truncated_body..."
+    else
+        echo "Response: $body"
+    fi
     echo -n "Result: "
     
     # Check status code
@@ -90,12 +99,55 @@ run_test "List Speakers" \
     "["
 
 # Test 5: Process Base64 Audio (with test audio)
-if [ -f "test/test-audio.wav" ]; then
-    AUDIO_BASE64=$(base64 -w 0 test/test-audio.wav 2>/dev/null || base64 test/test-audio.wav)
-    run_test "Process Base64 Audio" \
-        "curl -X POST -H 'Content-Type: application/json' -d '{\"audio_base64\":\"'$AUDIO_BASE64'\"}' $BASE_URL/process/base64" \
-        "200" \
-        '"success":true'
+# Use 16kHz mono audio if available, otherwise try original
+TEST_AUDIO_FILE="test/test-audio-16k-mono.wav"
+if [ ! -f "$TEST_AUDIO_FILE" ]; then
+    TEST_AUDIO_FILE="test/test-audio.wav"
+fi
+
+if [ -f "$TEST_AUDIO_FILE" ]; then
+    echo "Testing Process Base64 Audio..."
+    AUDIO_BASE64=$(base64 -w 0 "$TEST_AUDIO_FILE" 2>/dev/null || base64 "$TEST_AUDIO_FILE")
+    # Create JSON payload in a temp file to avoid argument list too long error
+    TEMP_JSON=$(mktemp)
+    echo "{\"audio_base64\":\"$AUDIO_BASE64\"}" > "$TEMP_JSON"
+    
+    # Show truncated command for visibility
+    TRUNCATED_BASE64=$(echo "$AUDIO_BASE64" | head -c 100)
+    echo "Command: curl -X POST -H 'Content-Type: application/json' -d '{\"audio_base64\":\"${TRUNCATED_BASE64}...[truncated]...\"}' $BASE_URL/process/base64"
+    
+    # Execute with file input (use -s to suppress progress bar)
+    response=$(curl -s -X POST -H 'Content-Type: application/json' -d @"$TEMP_JSON" "$BASE_URL/process/base64" -w '\n%{http_code}' 2>&1)
+    status_code=$(echo "$response" | tail -n 1)
+    body=$(echo "$response" | head -n -1)
+    
+    # Clean up temp file
+    rm -f "$TEMP_JSON"
+    
+    # Truncate response if needed
+    body_length=${#body}
+    if [ $body_length -gt 10240 ]; then
+        truncated_body=$(echo "$body" | head -c 10240)
+        echo "Response (truncated to 10KB from ${body_length} bytes): $truncated_body..."
+    else
+        echo "Response: $body"
+    fi
+    echo -n "Result: "
+    
+    # Check status code
+    if [ "$status_code" != "200" ]; then
+        echo -e "${RED}FAILED${NC} (Status: $status_code, Expected: 200)"
+        ((TESTS_FAILED++))
+        echo "---"
+    elif [[ ! "$body" == *'"success":true'* ]]; then
+        echo -e "${RED}FAILED${NC} (Response missing: \"success\":true)"
+        ((TESTS_FAILED++))
+        echo "---"
+    else
+        echo -e "${GREEN}PASSED${NC}"
+        ((TESTS_PASSED++))
+        echo "---"
+    fi
 else
     echo -e "${YELLOW}SKIPPED${NC} Process Base64 Audio (test/test-audio.wav not found)"
     echo "---"
