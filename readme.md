@@ -1,454 +1,198 @@
-The next installment of the ever lingering side project. Originally [pino](https://github.com/baocin/pino), then [loom](https://github.com/baocin/loom), then [loomv2](https://github.com/baocin/loomv2), breifly [loomv3](https://github.com/baocin/loomv3) but now finally {totally} settling on the forever repo - 
-
-# *AM*
-### As in, "I, AM" and short for "Allied Mastercomputer"
-
-*AM* is a custodian of all digital timeseries dataset an individual has access to. Typical sensors like gps, heart rate, ocred screen text, environmental audio, speech, motion, android app launch/close events, any manual screenshots taken, copied text, etc. Anything and everything. Including data not on your phone - but your watch, laptop, calendars, email, and some (hopefully more) social media sites. A time-synced feed of as much context an LLM background agent could ask for. Then we crunch it. OCR on all photos, STT on all audio, LLM analysis of all text, all of it embedded - searchable. Then a DSPY agent is let loose to analyze, find patterns, track habits, keep a log of *memories*, aspects inferred from your true behavior. And then makes suggestions - nudges, over real time custom notifications - where the LLM decides what is helpful to ask you, mention to you, proactively reminding you of events, memories, facts relevant to your immediate task. An LLM that doesn't need your explicit prompt to be useful - it knows what is happening. It can help. 
-
-
-----------------------------------
-Old description:
-
-Loom v2 Project Description
-This document provides a comprehensive overview of the Loom v2 project, a scalable, event-driven system designed to ingest, process, and analyze high-throughput multimodal data streams for a multi-user paid service. It details the technology stack, architecture, supported data streams, key considerations, and requirements to ensure a successful handoff to a new development team. The system is containerized using k3s for a monolith-like deployment experience, with support for GPU acceleration and CPU fallback, and is optimized for robustness, scalability, and maintainability.
-
-1. Project Overview
-Purpose: Loom v2 is a privacy-first platform that collects, processes, and derives insights from diverse data streams (e.g., audio, images, videos, EEG, sensors) to provide personalized notifications and actions via a Flutter mobile app and Android native watch app. It supports multi-user scalability as a paid service, with local processing capabilities to minimize cloud dependency.
-Core Features:
-
-Data Ingestion: Accepts real-time and batched data via REST, WebSocket, and gRPC.
-AI Processing: Uses MoonDream2 (OCR, gaze detection), MediaPipe (pose detection), and Phi-4 (speech-to-text, reasoning) for multimodal analysis.
-Event-Driven Architecture: Processes data asynchronously using NATS JetStream.
-Storage: Persists time-series data in TimescaleDB and large files locally.
-Notifications: Delivers insights via WebSocket to Flutter and Android apps.
-Tracing: Implements OpenTelemetry for end-to-end trace IDs.
-Deployment: Runs as a k3s-bound container set, with GPU support and CPU fallback.
-
-Goals:
-
-Support high-throughput data streams with sub-second latency for critical tasks.
-Ensure scalability for multiple users with data isolation.
-Maintain simplicity for development and deployment.
-Enable local processing for privacy compliance (e.g., GDPR, HIPAA).
-Allow testing on diverse hardware (GPU and CPU-only systems).
-
-
-2. Technology Stack
-The technology stack is chosen for performance, scalability, and developer productivity, with a focus on containerization and modularity.
-Backend
-
-Language: Go (v1.21+)
-
-Reason: High performance, concurrency with goroutines, and robust ecosystem for microservices.
-
-
-Framework: None (standard library + Gorilla Mux for HTTP, gRPC for RPC)
-
-Reason: Minimal dependencies for maintainability.
-
-
-Message Queue: NATS JetStream (v2.10+)
-
-Reason: Lightweight, high-throughput event streaming with durable subscriptions NATS.io.
-
-
-Database: TimescaleDB (v2.11+, PostgreSQL 15)
-
-Reason: Optimized for time-series data (e.g., EEG, sensor data) with hypertable compression TimescaleDB.
-
-
-Containerization: Docker (v24+)
-
-Reason: Standard for packaging services and dependencies.
-
-
-Orchestration: k3s (v1.28.3+k3s1)
-
-Reason: Lightweight Kubernetes for single-node deployments, suitable for servers and testing k3s Documentation.
-
-
-GPU Support: NVIDIA Container Toolkit (v1.14+), CUDA (12.2)
-
-Reason: Accelerates AI tasks (e.g., Phi-4, MoonDream2) NVIDIA Container Toolkit.
-
-
-Tracing: OpenTelemetry (v1.20+)
-
-Reason: Provides trace IDs for debugging across microservices OpenTelemetry.
-
-
-Monitoring: Prometheus (v2.47+), Grafana (v10+)
-
-Reason: Metrics collection and visualization for performance and health.
-
-
-
-AI Models
-
-MoonDream2: OCR and gaze detection for images and videos.
-
-Source: Hugging Face.
-Reason: Lightweight, suitable for edge and server deployment.
-
-
-MediaPipe: Pose detection for videos and real-time streams.
-
-Source: MediaPipe.
-Reason: Optimized for real-time processing, low resource usage.
-
-
-Phi-4 Multimodal Instruct: Speech-to-text (STT) and DSPy reasoning for audio and insights.
-
-Source: Hugging Face.
-Reason: Multimodal capabilities, GPU/CPU support.
-
-
-
-Frontend
-
-Mobile App: Flutter (v3.16+)
-
-Reason: Cross-platform (iOS, Android, desktop) with native performance Flutter.
-
-
-Watch App: Android Native (Kotlin, Android Wear OS 4.0+)
-
-Reason: Optimized for low-power wearables Android Wear OS.
-
-
-
-Development Tools
-
-Build System: Make (GNU Make 4.3+)
-
-Reason: Simplifies development and deployment workflows.
-
-
-CI/CD: GitHub Actions (optional for automated testing)
-
-Reason: Streamlines testing and deployment pipelines.
-
-
-Helm: v3.12+
-
-Reason: Manages k3s deployments with templated manifests Helm.
-
-
-
-
-3. Architecture
-Loom v2 uses an event-driven microservices architecture, orchestrated by k3s, to process high-throughput data streams. The system is designed for modularity, scalability, and maintainability, with a monolith-like deployment experience.
-Components
-
-Ingestion Service (Go)
-
-Accepts data via REST, WebSocket, and gRPC.
-Publishes metadata to NATS (e.g., user.<user_id>.data.raw).
-Stores large files (images, videos) locally, with metadata in NATS.
-
-
-Storage Service (Go)
-
-Subscribes to NATS raw data events.
-Persists metadata and time-series data (e.g., EEG, sensors) in TimescaleDB.
-
-
-Processing Services (Go)
-
-STT Processor: Uses Phi-4 for audio transcription.
-OCR Processor: Uses MoonDream2 for image/video analysis.
-Pose Processor: Uses MediaPipe for pose detection.
-EEG Processor: Processes high-frequency EEG data with artifact removal.
-Subscribes to NATS stored data events (e.g., user.<user_id>.data.stored).
-
-
-DSPy Service (Go)
-
-Uses Phi-4 for reasoning and action generation (e.g., notifications).
-Subscribes to processed data events (e.g., user.<user_id>.audio.transcribed).
-
-
-Embedding Service (Go)
-
-Generates embeddings for text, images, and audio.
-Subscribes to processed data events.
-
-
-Correlation & Causation Service (Go)
-
-Analyzes time-series data for patterns.
-Runs as a background process, subscribing to processed events.
-
-
-NATS JetStream
-
-Handles event-driven communication with durable streams.
-Uses subject hierarchies for user isolation (e.g., user.<user_id>.*).
-
-
-TimescaleDB
-
-Stores time-series data with hypertables for EEG, sensors, and health data.
-Supports compression for efficient storage.
-
-
-Flutter Mobile App
-
-Collects sensor data, sends to ingestion service via gRPC/WebSocket.
-Displays insights and notifications via WebSocket.
-
-
-Android Watch App (Kotlin)
-
-Collects wearable data (e.g., heart rate, EEG).
-Syncs with backend or mobile app via WebSocket.
-
-
-
-Data Flow
-
-Ingestion: Client (mobile/watch) sends data (e.g., audio, EEG) to ingestion service.
-Event Publishing: Ingestion service stores large files locally and publishes metadata to NATS (e.g., user.<user_id>.audio.raw).
-Storage: Storage service subscribes to raw events, persists metadata to TimescaleDB, and publishes stored events (e.g., user.<user_id>.audio.stored).
-Processing: Processing services (STT, OCR, EEG) subscribe to stored events, process data using AI models, and publish results (e.g., user.<user_id>.audio.transcribed).
-Reasoning: DSPy service subscribes to processed events, generates insights, and sends notifications via WebSocket.
-Client Update: Mobile/watch apps receive notifications and display insights.
-
-Deployment
-
-k3s: Orchestrates all services as containers in a single-node cluster.
-Helm: Manages deployments with dynamic GPU/CPU configuration.
-GPU Support: Enabled via NVIDIA Container Toolkit, with CPU fallback for testing.
-Monolith-Like Experience: Single make dev-up command starts k3s and deploys services.
-
-
-4. Supported Data Streams
-The system supports diverse data streams from detailed_project.md, each with specific processing and storage requirements.
-
-Audio
-
-Formats: WAV, WebM, Opus, MP3
-Sources: Mobile/watch microphones, multiple concurrent streams
-Processing: Phi-4 STT for transcription, embedding generation
-Storage: Local file system (raw), TimescaleDB (metadata, transcripts)
-Requirements: Sub-second latency for real-time transcription, noise filtering
-
-
-Images
-
-Formats: JPEG, PNG
-Sources: Photos, screenshots
-Processing: MoonDream2 for OCR, gaze detection, embedding
-Storage: Local file system (raw), TimescaleDB (metadata, results)
-Requirements: High-resolution processing, batch processing support
-
-
-Videos
-
-Formats: MP4, WebM
-Sources: Screen recordings, camera feeds
-Processing: MoonDream2 (OCR, gaze), MediaPipe (pose), embedding
-Storage: Local file system (raw), TimescaleDB (metadata, results)
-Requirements: Chunked streaming, GPU acceleration for real-time analysis
-
-
-EEG
-
-Format: High-frequency time-series (up to 1000 Hz)
-Sources: Wearable EEG devices
-Processing: Artifact removal (e.g., ICA), feature extraction, embedding
-Storage: TimescaleDB hypertables (raw, processed)
-Requirements: Real-time processing, noise robustness Electroencephalography Signal Processing
-
-
-Sensors
-
-Types: GPS, accelerometer, gyroscope
-Sources: Mobile/watch sensors
-Processing: Time-series analysis, embedding
-Storage: TimescaleDB hypertables
-Requirements: Low-power collection, high-frequency sampling
-
-
-Health Data
-
-Types: Steps, sleep, heart rate
-Sources: Wearables, mobile apps
-Processing: Aggregation, correlation analysis
-Storage: TimescaleDB
-Requirements: Privacy compliance, data export
-
-
-OS Events
-
-Types: Screen on/off, app lifecycle
-Sources: Mobile/watch OS
-Processing: Event correlation
-Storage: TimescaleDB
-Requirements: Low overhead, event deduplication
-
-
-System Monitoring
-
-Types: App usage, memory, CPU
-Sources: Mobile/watch OS
-Processing: Anomaly detection
-Storage: TimescaleDB
-Requirements: Minimal performance impact
-
-
-External Data
-
-Types: Email (IMAP), calendar (CalDAV), social media
-Sources: Third-party APIs
-Processing: Text extraction, embedding
-Storage: TimescaleDB (metadata), local cache
-Requirements: Robust error handling, rate limit management
-
-
-
-
-5. Key Considerations
-Scalability
-
-Challenge: High-throughput data (e.g., EEG at 1000 Hz, multiple audio streams) requires efficient resource allocation for multi-user support.
-Solution:
-
-NATS JetStream scales horizontally with additional nodes.
-k3s supports single-node clusters but can extend to multi-node for production.
-TimescaleDB hypertables optimize storage and query performance.
-
-
-Requirement: Test with simulated multi-user workloads (e.g., 100 users sending EEG data).
-
-Performance
-
-Challenge: AI tasks (e.g., Phi-4 STT, MoonDream2 OCR) are computationally intensive, requiring GPU acceleration for sub-second latency.
-Solution:
-
-NVIDIA Container Toolkit enables GPU support in k3s.
-CPU fallback for testing on low-end hardware.
-Batch processing for non-real-time tasks (e.g., video analysis).
-
-
-Requirement: Measure latency for critical streams (e.g., EEG, audio) in GPU and CPU modes.
-
-Privacy and Security
-
-Challenge: Sensitive data (EEG, health, emails) requires GDPR/HIPAA compliance.
-Solution:
-
-Encrypt data at rest (AES-256) and in transit (TLS).
-Use NATS subject prefixes (user.<user_id>.*) for data isolation.
-Support local processing to minimize cloud exposure.
-Provide data export/delete tools.
-
-
-Requirement: Implement RBAC and audit logging for user data access.
-
-Maintainability
-
-Challenge: Over 30 microservices increase operational complexity.
-Solution:
-
-Use Helm for standardized deployments.
-Centralize logging with Prometheus/Grafana.
-Implement OpenTelemetry for tracing.
-
-
-Requirement: Document service interactions and dependencies.
-
-Portability
-
-Challenge: GPU configurations vary across environments, and CPU-only deployments must be supported.
-Solution:
-
-Programmatic GPU detection (check_gpu.sh) enables dynamic configuration.
-Standardized Docker images with CUDA/CPU support.
-
-
-Requirement: Test deployments on diverse hardware (e.g., NVIDIA RTX, CPU-only servers).
-
-Data Consistency
-
-Challenge: High-throughput event-driven systems risk data loss or duplicates.
-Solution:
-
-Configure NATS JetStream for exactly-once delivery.
-Use trace IDs for idempotent storage in TimescaleDB.
-
-
-Requirement: Implement retry mechanisms and dead-letter queues.
-
-
-6. Requirements for Handoff
-Documentation
-
-Architecture Diagram: Visualize service interactions, data flows, and NATS subjects.
-Service Catalog: Document each service’s purpose, inputs, outputs, and dependencies.
-Setup Guide: Detail k3s, NATS, TimescaleDB, and GPU setup steps.
-Development Workflow: Explain Makefile commands (setup, dev-up, test-cpu, test-gpu).
-API Reference: Document REST, gRPC, and WebSocket endpoints.
-Data Schemas: Define NATS event schemas and TimescaleDB tables.
-Testing Plan: Outline unit, integration, and stress tests.
-
-Code Artifacts
-
-Backend Services: Go source code for ingestion, storage, processing, DSPy, embedding, correlation services.
-Dockerfiles: For each service, with GPU/CPU support (e.g., stt_processor/Dockerfile).
-Helm Charts: For k3s deployments (helm/loom/).
-Frontend Apps: Flutter mobile app (main.dart), Android watch app (MainActivity.kt).
-Scripts: GPU detection (check_gpu.sh), build automation (Makefile).
-Tests: Unit tests (go test), integration tests (tests/integration.yaml).
-
-Setup Instructions
-
-Install Dependencies:
-
-Go, Docker, k3s, Helm, Flutter, Kotlin SDK.
-NVIDIA drivers and Container Toolkit (if GPU available).
-
-
-Run Setup:
-bashmake setup
-Installs k3s, Helm, and builds Docker images, with GPU detection.
-Start Development:
-bashmake dev-up
-Starts k3s and deploys services with dynamic GPU/CPU configuration.
-Test Modes:
-bashmake test-cpu
-make test-gpu
-Tests CPU and GPU performance limits.
-Monitor:
-
-Access Prometheus at http://localhost:9090.
-View traces in Grafana or OpenTelemetry collector.
-
-
-
-Team Skills
-
-Go: For backend service development and maintenance.
-Kubernetes/k3s: For container orchestration and deployment.
-NATS: For event-driven architecture and message queue management.
-TimescaleDB/PostgreSQL: For database schema design and optimization.
-Flutter/Kotlin: For mobile and watch app development.
-AI/ML: Familiarity with MoonDream2, MediaPipe, Phi-4 for model integration.
-DevOps: Experience with Docker, Helm, Prometheus, and OpenTelemetry.
-
-Testing Requirements
-
-Unit Tests: Cover all Go services (90%+ coverage).
-Integration Tests: Verify NATS, TimescaleDB, and service interactions.
-Stress Tests: Simulate 100 users with EEG, audio, and video streams.
-Performance Tests: Measure latency for GPU vs. CPU modes.
-Security Tests: Validate encryption, RBAC, and data isolation.
-
-Deployment Requirements
-
-Single-Node Deployment: k3s on a server with 16GB RAM, modern CPU, optional NVIDIA GPU.
-Multi-Node (Future): Extend k3s to multi-node Kubernetes for production.
-Installer: Package k3s, images, and Helm charts into a single script or binary.
-Monitoring: Deploy Prometheus/Grafana for production monitoring.
-
-
+# AM: Allied Mastercomputer
+
+[![Build Status](https://img.shields.io/badge/build-passing-green)](https://github.com/baocin/AM/actions) [![Python](https://img.shields.io/badge/python-3.11+-blue)](https://python.org) [![Docker](https://img.shields.io/badge/docker-supported-blue)](https://docker.com) [![Kubernetes](https://img.shields.io/badge/kubernetes-optional-blue)](https://kubernetes.io) [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-orange)](https://www.gnu.org/licenses/agpl-3.0.en.html)
+
+**AM** is your ultimate personal digital custodian—a privacy-first, local-first system that aggregates, processes, and analyzes *all* available timeseries data from your devices and digital life. Evolving from prototypes like [Pino](https://github.com/baocin/pino), [Loom](https://github.com/baocin/loom), [Loom v2](https://github.com/baocin/loomv2), and [Loom v3](https://github.com/baocin/loomv3), AM unifies everything into a cohesive platform. It collects raw data streams (e.g., GPS, audio, sensors), applies AI/ML processing (e.g., STT, OCR, embeddings), extracts meaningful abstractions (e.g., habits, memories), and deploys an intelligent agent for proactive insights and notifications.
+
+Think of AM as a "second brain" that:
+- Records your life's context passively.
+- Derives high-level insights like "Your heart rate spiked during that meeting—likely stress from the conversation topic."
+- Nudges you with timely suggestions: "Based on your GPS and calendar, you're near the gym—time for your workout?"
+- Evolves into a DSPy-powered LLM agent that queries your data, detects anomalies, and acts autonomously (e.g., sending reminders or logging inferred events).
+
+**Key Principles**:
+- **Local-First**: No cloud dependencies; all processing on-device or self-hosted.
+- **Privacy-Centric**: Encrypted storage, user-configurable data retention, no tracking.
+- **Extensible**: Plug in new ML models (e.g., commercially viable open source models) for custom analysis.
+- **Ambitious but Phased**: Start with data ingestion, build to full agent intelligence.
+
+**Disclaimer**: This is a work-in-progress prototype. Features are experimental. Always follow local laws on data recording (e.g., audio consent). You are responsible for your usage.
+
+## Goal & Vision
+
+AM aims to create a comprehensive "life log" by fusing raw data into increasingly abstract layers of meaning:
+1. **Raw Data Layer**: Collect everything (sensors, apps, external services).
+2. **Processed Data Layer**: Apply ML for features like STT, OCR, embeddings.
+3. **Insight Layer**: Detect patterns, anomalies, correlations (e.g., heart rate + GPS = exercise detection).
+4. **Agent Layer**: DSPy/LLM agent analyzes abstractions, logs "memories," tracks habits, and sends proactive notifications.
+5. **Ultimate Dream**: A digital twin for simulation, longevity coaching, and consciousness augmentation (long-term).
+
+Real-world applications:
+- **Health**: Correlate heart rate spikes with events (e.g., stress from emails).
+- **Productivity**: Track app usage + context for focus insights.
+- **Memory**: Searchable embeddings of transcribed audio, OCRed screens, and photos.
+- **Legal/Safety**: Timestamped logs for disputes or emergencies.
+- **Personal Growth**: Habit tracking with nudges (e.g., "You've skipped breaks—take one now").
+
+## Features
+
+### Data Sources (Ingestion)
+- **Mobile/Wearable (Android/iOS/Watch)**: GPS, accelerometer, gyroscope, magnetometer, heart rate, steps, sleep, battery, temperature, barometer, WiFi/Bluetooth scans.
+- **OS Events**: Screen on/off, app launches/closes/crashes, notifications, copied text.
+- **Media**: Environmental audio (streaming), passive photos (triggered by motion/novelty), screenshots, camera photos/videos.
+- **Health/External**: Steps, sleep, calendars (CalDAV for events integration), emails (IMAP/SMTP for inbox/sent monitoring), contacts (CardDAV), social media (Twitter likes/posts, GitHub activity, YouTube history/posts), budgets (Google Sheets).
+- **Laptop/Desktop**: System stats (CPU/GPU/memory), browser history, keystrokes (opt-in), screen OCR.
+- **Custom**: Any timeseries via generic endpoints (e.g., EEG from wearables).
+
+### Processing Pipelines
+- **Real-Time Ingestion**: WebSocket/REST/gRPC for streaming/batch; validation with JSON schemas.
+- **Audio/Video**: STT (Whisper/Phi-4), voice activity detection, emotion recognition, noise filtering.
+- **Images**: OCR (MoonDream2), face detection/recognition, object detection (YOLO), gaze/pose estimation (MediaPipe), license plate recognition.
+- **Sensors**: Motion classification (walking/driving), geocoding (Nominatim), speed estimation.
+- **Text/Analysis**: Embeddings (Nomic Embed Vision v1.5 for open commercial usage), NLP for sentiment/summarization, LLM reasoning (Phi-4 or other open source models).
+- **Anomaly Detection**: Multi-tier system (River ML for streaming, Prophet for forecasting) handling 30+ streams, gap-aware, causal explanations (e.g., "Heart rate anomaly due to GPS movement").
+- **Passive Photo System**: IMU-triggered low-res verification → full-res capture on novelty; off-device stitching for "journey maps."
+- **Abstractions**: Time-synced feed → embeddings → searchable index → pattern mining (habits, correlations) → "memories" (inferred events like "Conversation with X about Y").
+
+### Insights & Agent
+- **Notifications**: Gotify/WebSocket for nudges (e.g., "Break time based on screen usage").
+- **DSPy/LLM Agent**: Analyzes data for patterns/habits/memories; proactive (e.g., "Remind of past event relevant to current GPS").
+- **Analytics**: Causal inference (e.g., "App usage caused fatigue"), multi-modal fusion (audio + sensors = activity detection).
+- **Storage**: TimescaleDB for timeseries (hypertables, compression); local files for media; DuckDB for edge queries.
+
+### Monitoring & Extensibility
+- Prometheus/Grafana for metrics/logs.
+- OpenTelemetry for tracing.
+- Plug-and-play ML: GPU/CPU support (NVIDIA Toolkit); models like Florence2 for vision, SGLang for LLM serving.
+
+## Architecture
+
+AM uses a microservices design for modularity, deployable as Docker Compose (dev/small-scale) or k3s/Kubernetes (production/multi-user).
+
+```mermaid
+graph TD
+    subgraph "Data Sources"
+        Mobile[Mobile/Watch Apps]
+        Laptop[Laptop/Desktop]
+        External[APIs: Email/Calendar/Social]
+    end
+
+    subgraph "Ingestion Layer"
+        API[FastAPI/gRPC/WebSocket]
+        Validators[Schema Validation]
+    end
+
+    subgraph "Storage & Queue"
+        DB[(TimescaleDB: Timeseries/Metadata)]
+        Files[Local Files: Media]
+        Queue[NATS JetStream/Kafka: Events]
+    end
+
+    subgraph "Processing Services"
+        Audio[STT/Emotion]
+        Vision[OCR/Object Detection]
+        Sensors[Motion/Geocoding]
+        Anomaly[Multi-Tier Detection]
+        Embed[Embeddings/NLP]
+    end
+
+    subgraph "Agent & Insights"
+        LLM[DSPy/LLM Agent]
+        Notify[Notifications/Actions]
+        Analytics[Causal Inference/Patterns]
+    end
+
+    subgraph "Clients"
+        App[Flutter Mobile App]
+        Watch[Android Watch App]
+        Desktop[Rust/Tauri Desktop]
+    end
+
+    Mobile --> API
+    Laptop --> API
+    External --> API
+    API --> Validators --> Queue --> DB
+    API --> Files
+    Queue --> Audio --> Embed --> LLM
+    Queue --> Vision --> Embed --> LLM
+    Queue --> Sensors --> Analytics --> LLM
+    Queue --> Anomaly --> Analytics --> LLM
+    LLM --> Notify --> App
+    Notify --> Watch
+    Notify --> Desktop
+```
+
+- **Event-Driven**: NATS/Kafka for async processing.
+- **Scalability**: Horizontal scaling per service; user isolation via namespaces.
+- **Edge Support**: Subset runs on-device (e.g., DuckDB + lightweight ML).
+
+## Identified Problems & Mitigations
+
+AM's ambition introduces challenges. Here's a breakdown with solutions:
+
+| Problem | Description | Mitigation |
+|---------|-------------|------------|
+| **Privacy/Security** | Collecting sensitive data (audio, photos, emails) risks breaches/leaks. | - Encrypt at-rest/in-transit (AES-256/TLS).<br>- User controls: Opt-in per source, retention policies, data export/delete.<br>- Local-only mode; audit logs; GDPR/HIPAA-ready features. |
+| **Battery/Power Drain** | Continuous sensors/audio drain mobile battery. | - Interrupt-driven (IMU triggers); low-res previews for photos.<br>- Adaptive sampling (e.g., reduce during sleep).<br>- Targets: <1mW baseline, 2-3 days battery. |
+| **Data Volume/Storage** | TBs from audio/video/sensors overwhelm storage. | - Compression (TimescaleDB hypertables); selective capture (novelty triggers).<br>- Rolling retention (e.g., 30 days raw, permanent abstractions).<br>- Offload to external drives. |
+| **Processing Overhead** | ML models (STT, LLM) require GPU/compute. | - CPU/GPU fallback; quantized models (e.g., open source models).<br>- Batch/offline processing; edge-first for real-time needs.<br>- Monitor via Prometheus; scale with k3s. |
+| **Integration Reliability** | External APIs (email/social) can fail/rate-limit. | - Retry queues; caching; error handling.<br>- Polling with backoff; user alerts for auth issues. |
+| **Accuracy/False Positives** | ML errors (e.g., bad STT) or noisy anomalies/notifications annoy users. | - Confidence thresholds; user feedback loops for retraining.<br>- Ensemble models; causal explanations for context.<br>- Rate-limit notifications. |
+| **Legal/Ethical** | Audio recording, face detection violate laws/consent. | - User-configurable consent prompts; geo-based rules.<br>- Disclaimers; anonymization options.<br>- No sharing without explicit opt-in. |
+| **Complexity/Scope Creep** | 30+ streams + ML pipelines = hard to maintain. | - Phased rollout (ingestion first, agent last).<br>- Modular services; comprehensive tests (71+ from v2).<br>- Open-source for community help. |
+| **Scalability/Multi-User** | From personal to paid service. | - User namespaces in DB/Queue.<br>- Kubernetes for horizontal scaling.<br>- Start single-user; add RBAC later. |
+| **Cold Start/Adaptation** | Needs data to learn; slow initial value. | - River ML for immediate streaming learning.<br>- Pre-seeded models; quick wins like basic alerts. |
+
+## Setup & Installation
+
+### Prerequisites
+- Python 3.11+, Docker, k3s (optional), NVIDIA GPU (recommended for ML).
+- Libraries: FastAPI, River, Prophet, HuggingFace (Whisper, MoonDream2, etc.).
+
+### Quick Start (Docker Compose)
+```bash
+git clone https://github.com/baocin/AM
+cd AM
+cp .env.example .env  # Edit secrets
+make setup  # Install deps, pre-commit
+make dev-up  # Start services (ingestion, DB, processors)
+make topics-create  # Kafka/NATS topics
+make test  # Run tests
+```
+
+- Access: API at http://localhost:8000/docs; DB at postgres://loom:loom@localhost:5432/loom.
+- Mobile App: Flutter setup in `/android-app` or `/flutter-app`.
+- Models: Download Whisper/Phi-4 manually to `/models`.
+
+### Production (k3s)
+```bash
+./scripts/setup-local-dev.sh  # Builds images, deploys cluster
+```
+
+## Contribution
+
+Welcome! See issues for tasks. Use conventional commits; run `make lint`/`make test`. Focus: Ingestion stability, ML integrations, anomaly detection.
+
+## Licensing
+
+AM is dual-licensed:
+
+- **Individual Use**: AGPL-3.0 License (free)
+  - Personal use on your own devices
+  - Modifications must be open sourced
+  - Cannot be used in commercial products/services
+
+- **Commercial Use**: Commercial License Required
+  - For companies, organizations, or commercial products
+  - For SaaS offerings or embedded use
+  - Contact loom@steele.red for pricing
+
+## Roadmap
+
+- **Sprint 1**: Unified ingestion + basic storage.
+- **Sprint 2**: Core ML pipelines (STT/OCR/anomalies).
+- **Sprint 3**: Passive photo + embeddings/search.
+- **Sprint 4**: DSPy agent + notifications.
+- **Long-Term**: Multi-user, digital twin features.
+
+Contact: loom@steele.red or issues. Let's build the future of personal AI!
